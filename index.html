@@ -238,9 +238,12 @@
     <div class="archivo-header">
       <button class="btn-back" id="btn-back-from-archivo">← Volver</button>
       <h2>Archivo</h2>
+      <button class="btn-load" id="btn-load-html" title="Cargar una lista de palabras guardada (solo en este dispositivo)">📂 Cargar</button>
       <button class="btn-save" id="btn-save-html" title="Guardar lista de palabras (data/palabras.js)">💾 Guardar</button>
+      <input type="file" id="inp-load-file" accept=".js,.txt,text/javascript,text/plain" style="display:none">
     </div>
     <div id="save-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--green); margin-bottom:10px; letter-spacing:0.1em;">✓ Guardado — ábrelo desde Descargas</div>
+    <div id="load-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--blue); margin-bottom:10px; letter-spacing:0.1em;"></div>
 
     <!-- Nueva categoría -->
     <div class="new-cat-section">

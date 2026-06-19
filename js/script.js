@@ -1479,6 +1479,54 @@ if (fb) { fb.style.display = 'block'; setTimeout(() => { fb.style.display = 'non
 vibrate(30);
 }
 $('btn-save-html').addEventListener('click', () => { saveHtml('save-feedback'); });
+// Carga una lista de palabras previamente guardada (solo en este dispositivo, no toca el servidor).
+// Acepta un palabras.js (con la variable PALABRAS_DATA) o un .txt con un renglón por categoría.
+function showLoadFeedback(msg, isError) {
+const fb = $('load-feedback');
+if (!fb) return;
+fb.textContent = msg;
+fb.style.color = isError ? 'var(--accent)' : 'var(--blue)';
+fb.style.display = 'block';
+setTimeout(() => { fb.style.display = 'none'; }, 3500);
+}
+function applyLoadedData(rawData) {
+const trimmed = rawData.trim();
+if (!trimmed) { showLoadFeedback('El archivo está vacío.', true); return; }
+state.selectedCats.clear();
+buildCategories(trimmed);
+buildArchivoScreen();
+showLoadFeedback('✓ Lista cargada — ' + CATEGORIES.length + ' categorías (solo en este dispositivo)', false);
+vibrate(30);
+}
+$('btn-load-html').addEventListener('click', () => { $('inp-load-file').click(); });
+$('inp-load-file').addEventListener('change', (e) => {
+const file = e.target.files && e.target.files[0];
+if (!file) return;
+const reader = new FileReader();
+reader.onload = (ev) => {
+const text = String(ev.target.result || '');
+const bt = String.fromCharCode(96);
+let rawData;
+const first = text.indexOf(bt);
+const last = text.lastIndexOf(bt);
+if (first !== -1 && last > first) {
+// palabras.js: el contenido vive entre las comillas invertidas
+rawData = text.slice(first + 1, last);
+} else {
+// .txt plano: usar tal cual
+rawData = text;
+}
+try {
+applyLoadedData(rawData);
+} catch (err) {
+console.error(err);
+showLoadFeedback('No se pudo leer el archivo.', true);
+}
+};
+reader.onerror = () => { showLoadFeedback('No se pudo leer el archivo.', true); };
+reader.readAsText(file);
+e.target.value = ''; // permite recargar el mismo archivo otra vez
+});
 $('btn-info-toggle').addEventListener('click', () => {
 const footer = $('info-footer');
 footer.classList.toggle('visible');
