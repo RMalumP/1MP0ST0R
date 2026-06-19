@@ -1,0 +1,271 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Impostor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <h1>El Impostor</h1>
+    <div class="subtitle">Descubre · Engaña · Acusa</div>
+  </header>
+
+  <!-- ===== SCREEN 1: SETUP ===== -->
+  <div class="screen active" id="screen-setup">
+    <div class="section">
+      <div class="section-title">Jugadores</div>
+      <div class="stepper">
+        <button class="stepper-btn" id="btn-players-minus" aria-label="Reducir jugadores">−</button>
+        <div class="stepper-divider"></div>
+        <input type="number" id="inp-players" class="stepper-inp" min="3" value="4" inputmode="numeric" aria-label="Número de jugadores">
+        <div class="stepper-divider"></div>
+        <button class="stepper-btn" id="btn-players-plus" aria-label="Añadir jugador">+</button>
+      </div>
+
+      <div class="section-title" style="margin-top:16px;">Impostores</div>
+      <div class="stepper">
+        <button class="stepper-btn" id="btn-impostors-minus" aria-label="Reducir impostores">−</button>
+        <div class="stepper-divider"></div>
+        <input type="number" id="inp-impostors" class="stepper-inp" min="1" value="1" inputmode="numeric" aria-label="Número de impostores">
+        <div class="stepper-divider"></div>
+        <button class="stepper-btn" id="btn-impostors-plus" aria-label="Añadir impostor">+</button>
+      </div>
+
+      <div class="names-collapsible" id="names-collapsible">
+        <div class="names-collapsible-header" id="names-collapsible-header">
+          <span class="names-collapsible-label">Nombres de jugadores</span>
+          <span class="names-collapsible-chevron">▼</span>
+        </div>
+        <div class="names-collapsible-body">
+          <table class="players-table" id="players-table" style="margin-top:6px;"></table>
+          <button class="btn-add-player" id="btn-add-player">＋ Añadir jugador</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Categorías</div>
+      <div class="cat-actions">
+        <button class="cat-action all" id="btn-all">Todas</button>
+        <button class="cat-action custom" id="btn-custom">Personalizada</button>
+      </div>
+      <div class="cat-collapsible" id="cat-collapsible">
+        <div class="cat-collapsible-header" id="cat-collapsible-header">
+          <span class="cat-collapsible-label">Categorías individuales</span>
+          <span class="cat-collapsible-chevron">▼</span>
+        </div>
+        <div class="cat-collapsible-body">
+          <div class="cat-grid" id="cat-grid" style="margin-top:8px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODOS DE JUEGO -->
+    <div class="section" style="margin-bottom:14px;">
+      <div class="section-title">Modos de Juego</div>
+      <div class="mode-btns">
+        <button class="mode-btn selected" data-mode="normal" id="mode-normal">
+          <span class="mode-btn-icon">🎭</span>
+          <div class="mode-btn-title">Normal</div>
+        </button>
+        <button class="mode-btn" data-mode="multiple" id="mode-multiple">
+          <span class="mode-btn-icon">🔀</span>
+          <div class="mode-btn-title" id="mode-multiple-title">Múltiple</div>
+        </button>
+        <button class="mode-btn" data-mode="escondite" id="mode-escondite">
+          <span class="mode-btn-icon">🕵️</span>
+          <div class="mode-btn-title">Escondite</div>
+        </button>
+      </div>
+      <div id="mode-details-wrap">
+        <button class="mode-details-toggle" id="mode-details-toggle">
+          <span id="mode-details-label">Ver detalles</span>
+          <span class="mode-details-chevron">▼</span>
+        </button>
+        <div class="mode-details-body">
+          <div id="mode-desc-box"></div>
+        </div>
+      </div>
+      <div id="multi-word-config" style="display:none;">
+        <div class="multi-word-label">Palabras distintas</div>
+        <div class="multi-word-btns" id="multi-word-btns"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btn-start">Comenzar</button>
+    <div class="error-msg" id="setup-error"></div>
+
+    <div class="section" style="margin-top:14px;">
+      <div class="collapsible-header" id="opts-header">
+        <div class="section-title" style="margin-bottom:0;">Opciones</div>
+        <span class="collapsible-chevron">▼</span>
+      </div>
+      <div class="collapsible-body" id="opts-body">
+        <div style="padding-top:12px;">
+          <div class="toggle-row">
+            <div class="toggle-label">Pista<small>Mostrar categoría al impostor</small></div>
+            <div class="switch" id="sw-hint"></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label">Cronómetro<small>Activar temporizador para la ronda</small></div>
+            <div class="switch" id="sw-timer"></div>
+          </div>
+          <div id="timer-config" style="display:none; margin-top:12px;">
+            <div class="timer-row">
+              <input type="number" id="inp-timer" class="num-inp-plain" min="10" max="3600" value="180" inputmode="numeric">
+              <span class="label">segundos</span>
+            </div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label">Imágenes<small>Busca imagen en Wikipedia (requiere internet, puede fallar)</small></div>
+            <div class="switch" id="sw-images"></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label">Vibración<small>Feedback háptico en el móvil</small></div>
+            <div class="switch on" id="sw-vibrate"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button class="btn-archivo" id="btn-open-archivo" style="flex:0.9; margin-top:0;">
+        <span>📂</span> Archivo de palabras
+      </button>
+      <button class="btn-archivo" id="btn-save-main" style="flex:0.1; margin-top:0; padding:8px 8px; font-size:0.9rem;">
+        💾
+      </button>
+    </div>
+    <div id="save-feedback-main" style="display:none; text-align:center; font-size:0.78rem; color:var(--green); margin-top:6px; letter-spacing:0.1em;">✓ Guardado — ábrelo desde Descargas</div>
+  </div>
+
+  <!-- ===== SCREEN 1b: ALCALDE ===== -->
+  <div class="screen" id="screen-alcalde">
+    <div class="alcalde-screen">
+      <div class="alcalde-badge">👑 Alcalde</div>
+      <div class="alcalde-title">El Alcalde Elige</div>
+      <div class="alcalde-who" id="alcalde-who-box">
+        <div class="alcalde-who-label">El Alcalde es</div>
+        <div class="alcalde-who-name" id="alcalde-who-name">—</div>
+      </div>
+      <div class="alcalde-sub">Define las palabras de esta ronda.<br>El Alcalde tiene voto de gracia en caso de empate.</div>
+
+      <div class="alcalde-num-words">
+        <div class="alcalde-num-label">Número de palabras</div>
+        <div class="stepper" style="max-width:200px;margin:0 auto;">
+          <button class="stepper-btn" id="btn-alcalde-words-minus">−</button>
+          <div class="stepper-divider"></div>
+          <input type="number" id="inp-alcalde-numwords" class="stepper-inp" min="1" value="1" inputmode="numeric">
+          <div class="stepper-divider"></div>
+          <button class="stepper-btn" id="btn-alcalde-words-plus">+</button>
+        </div>
+      </div>
+
+      <div class="alcalde-words-list" id="alcalde-words-list"></div>
+
+      <button class="btn-alcalde-confirm" id="btn-alcalde-confirm">Confirmar</button>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN 2: TURNS ===== -->
+  <div class="screen" id="screen-turns">
+    <div class="turn-info">
+      <div id="mode-badge-turns"></div>
+      <div class="player-num" id="player-num">Jugador 1</div>
+      <div class="player-of" id="player-of">1 de 4</div>
+    </div>
+    <div class="reveal-card" id="reveal-card">
+      <div class="reveal-hidden">
+        <div class="eye-icon">👁</div>
+        <div class="tap-text">Toca para ver</div>
+      </div>
+      <div class="reveal-shown" id="reveal-shown"></div>
+    </div>
+    <button class="btn-primary" id="btn-next">Siguiente</button>
+    <button class="btn-secondary" id="btn-go-game" style="display:none;">Comenzar el Juego</button>
+    <button class="btn-secondary btn-ghost" id="btn-back-setup">Volver al inicio</button>
+  </div>
+
+  <!-- ===== SCREEN 3: GAME ===== -->
+  <div class="screen" id="screen-game">
+    <div id="timer-area">
+      <div class="timer-display">
+        <div class="timer-time" id="timer-time">03:00</div>
+        <div class="timer-label" id="timer-label">Tiempo restante</div>
+      </div>
+      <div class="timer-controls">
+        <button class="btn-secondary" id="btn-timer-start">Iniciar</button>
+        <button class="btn-secondary btn-ghost" id="btn-timer-reset">Reiniciar</button>
+      </div>
+      <div class="timer-edit">
+        <input type="number" id="inp-timer-change" min="10" max="3600" inputmode="numeric" placeholder="Nuevo tiempo (s)">
+        <button id="btn-timer-change">Cambiar</button>
+      </div>
+    </div>
+    <div class="no-timer" id="no-timer-area" style="display:none;">
+      <div class="icon">🎭</div>
+      <div>¡A jugar! Sin cronómetro.</div>
+    </div>
+
+    <div class="section" style="margin-top:16px;">
+      <div class="section-title">Jugadores</div>
+      <div class="game-players" id="game-players-list"></div>
+    </div>
+
+    <button class="btn-ver-resultados" id="btn-ver-resultados">📋 Ver resultados</button>
+    <button class="end-btn" id="btn-end-game">Fin del Juego</button>
+  </div>
+
+  <!-- ===== SCREEN 5: VICTORIA ===== -->
+  <div class="screen" id="screen-victoria">
+    <div class="victory-msg" id="victory-msg"></div>
+    <div class="section" style="margin-top:8px;">
+      <div class="section-title">Jugadores</div>
+      <div class="game-players" id="victoria-players-list"></div>
+    </div>
+    <button class="btn-ver-resultados" id="btn-ver-resultados-victoria">📋 Ver resultados completos</button>
+    <button class="end-btn" id="btn-end-victoria">Nueva Partida</button>
+  </div>
+
+  <!-- ===== SCREEN 4: ARCHIVO ===== -->
+  <div class="screen" id="screen-archivo">
+    <div class="archivo-header">
+      <button class="btn-back" id="btn-back-from-archivo">← Volver</button>
+      <h2>Archivo</h2>
+      <button class="btn-save" id="btn-save-html" title="Guardar como HTML">💾 Guardar</button>
+    </div>
+    <div id="save-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--green); margin-bottom:10px; letter-spacing:0.1em;">✓ Guardado — ábrelo desde Descargas</div>
+
+    <!-- Nueva categoría -->
+    <div class="new-cat-section">
+      <div class="section-title">+ Nueva categoría</div>
+      <div class="new-cat-fields">
+        <input type="text" id="inp-new-cat-name" class="field-inp" placeholder="Nombre de categoría" maxlength="40">
+        <input type="text" id="inp-new-cat-words" class="field-inp" placeholder="Palabras separadas por comas: Perro, Gato (felino), ...">
+        <button class="btn-add-cat" id="btn-add-cat">Añadir categoría</button>
+      </div>
+      <div class="new-cat-hint">El nombre se convertirá en un botón de categoría. Puedes añadir descripciones entre paréntesis: <em>Pizza (Italia)</em>.</div>
+      <div class="new-cat-error" id="new-cat-error"></div>
+    </div>
+
+    <!-- Lista de categorías con palabras -->
+    <div id="archivo-cat-list"></div>
+  </div>
+
+</div>
+
+  <button class="btn-info-toggle" id="btn-info-toggle" title="Info">ℹ</button>
+  <div class="info-footer" id="info-footer">
+    <p><strong>Dirección:</strong> RMP</p>
+    <p><strong>Desarrollo:</strong> Efectuado a través de Vibe Coding con Claude</p>
+    <p><strong>Derechos:</strong> Licencia CC BY-SA</p>
+  </div>
+<script src="js/script.js"></script>
+</body>
+</html>
