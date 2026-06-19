@@ -1462,13 +1462,16 @@ if (last) { last.classList.add('open'); last.scrollIntoView({ behavior: 'smooth'
 }, 50);
 vibrate(25);
 });
-// Exporta la lista de palabras (categorías) a un .txt con el mismo formato que data/palabras.txt
+// Exporta la lista de palabras (categorías) como data/palabras.js para reemplazar el archivo
 function saveHtml(feedbackId) {
 const newRawData = CATEGORIES.map(cat => cat.id + ',' + cat.words.join(',')).join('\n');
-const blob = new Blob([newRawData], { type: 'text/plain;charset=utf-8' });
+const bt = String.fromCharCode(96);
+const fileContent = '// Lista de palabras del juego (un renglón por categoría): NOMBRE,palabra1,palabra2,...\n' +
+'const PALABRAS_DATA = ' + bt + newRawData + bt + ';\n';
+const blob = new Blob([fileContent], { type: 'text/javascript;charset=utf-8' });
 const blobUrl = URL.createObjectURL(blob);
 const a = document.createElement('a');
-a.href = blobUrl; a.download = 'palabras.txt';
+a.href = blobUrl; a.download = 'palabras.js';
 document.body.appendChild(a); a.click(); document.body.removeChild(a);
 setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
 const fb = $(feedbackId);
@@ -1487,7 +1490,8 @@ if (footer.classList.contains('visible') && !footer.contains(e.target) && e.targ
 footer.classList.remove('visible');
 }
 });
-// La lista de palabras vive en data/palabras.txt (un renglón por categoría)
+// La lista de palabras vive en data/palabras.js (variable PALABRAS_DATA, un renglón por categoría).
+// Se carga con <script src> para que la app funcione también con doble clic (file://).
 function buildCategories(rawData) {
 CATEGORIES = rawData.split('\n').map(line => {
 const parts = parseLine(line);
@@ -1497,10 +1501,9 @@ CATEGORIES.forEach(cat => { if (!isCatBlocked(cat)) state.selectedCats.add(cat.i
 buildCatGrid();
 updateAllBtn();
 }
-fetch('data/palabras.txt')
-.then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-.then(text => buildCategories(text.trim()))
-.catch(err => {
-console.error('No se pudo cargar data/palabras.txt:', err);
-alert('No se pudo cargar la lista de palabras (data/palabras.txt). Sirve el proyecto desde un servidor web.');
-});
+if (typeof PALABRAS_DATA === 'string') {
+buildCategories(PALABRAS_DATA.trim());
+} else {
+console.error('No se encontró PALABRAS_DATA (data/palabras.js no se cargó).');
+alert('No se pudo cargar la lista de palabras (data/palabras.js).');
+}
