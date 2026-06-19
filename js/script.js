@@ -767,11 +767,15 @@ const flagEnUrl = 'https://en.wikipedia.org/w/api.php?action=query&titles=' + en
 return fetch(flagEnUrl).then(r => r.json()).then(d2 => {
 const pg2 = d2.query && d2.query.pages ? Object.values(d2.query.pages)[0] : null;
 if (pg2 && pg2.thumbnail) showImg(container, pg2.thumbnail.source, cleanWord);
-else container.innerHTML = '';
-}).catch(() => { container.innerHTML = ''; });
-}).catch(() => { container.innerHTML = ''; });
+else runGeneralSearch();
+}).catch(() => { runGeneralSearch(); });
+}).catch(() => { runGeneralSearch(); });
 return;
 }
+runGeneralSearch();
+// Búsqueda general por tipo de categoría. También es el camino de respaldo para
+// listas personalizadas subidas cuya categoría no coincide con ninguna conocida.
+function runGeneralSearch() {
 const isPerson = /persona|personaje|celebr|actor|actriz|músic|deport|histor|polít|real/i.test(cleanCat);
 const isObject = /objeto|herramienta|cotidian|utensilio|aparato|electrodom/i.test(cleanCat);
 const isAnimal = /animal/i.test(cleanCat);
@@ -854,7 +858,9 @@ queries = [cleanWord + ' futbolista', cleanWord + ' deportista', fullSearch, cle
 } else if (isPersonalized) {
 queries = [fullSearch, cleanWord, cleanWord + ' wikipedia', cleanWord + ' definición', cleanWord + ' concepto', cleanWord + ' ilustración'];
 } else {
-queries = [fullSearch + ' ' + cleanCat, fullSearch, cleanWord];
+// Categoría desconocida (p. ej. lista personalizada subida): usar la categoría
+// como contexto y, si no da resultados, recurrir a la búsqueda amplia genérica.
+queries = [fullSearch + ' ' + cleanCat, fullSearch, cleanWord, cleanWord + ' wikipedia', cleanWord + ' definición', cleanWord + ' concepto'];
 }
 const uniqQ = [...new Set(queries)];
 function tryNext(i) {
@@ -862,6 +868,7 @@ if (i >= uniqQ.length) { _imgCache[cacheKey] = null; container.innerHTML = ''; r
 wikiSearch(uniqQ[i], src => { _imgCache[cacheKey] = src; showImg(container, src, cleanWord); }, () => tryNext(i+1));
 }
 tryNext(0);
+}
 }
 function goToTurn() { showScreen('screen-turns'); renderTurn(); }
 function renderTurn() {
