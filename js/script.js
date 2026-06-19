@@ -443,7 +443,7 @@ if (blocked) cls += ' blocked';
 if (isSelected) cls += ' selected';
 const btn = document.createElement('button');
 btn.className = cls;
-btn.textContent = cat.name;
+btn.textContent = cat.name.replace(/^_BLOCK_/,'').replace(/_NOPNG_/gi,'').trim();
 btn.dataset.id = cat.id;
 btn.addEventListener('click', () => {
 if (state.customOn) return;
