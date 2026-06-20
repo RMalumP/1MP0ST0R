@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Body -->
+  <ellipse cx="50" cy="62" rx="28" ry="34" fill="#c0392b"/>
+  <!-- Head -->
+  <ellipse cx="50" cy="30" rx="22" ry="20" fill="#c0392b"/>
+  <!-- Visor -->
+  <path d="M32 26 Q50 16 68 26 Q68 38 50 38 Q32 38 32 26Z" fill="#5dade2" opacity="0.9"/>
+  <!-- Visor shine -->
+  <path d="M36 24 Q44 20 54 22" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <!-- Backpack -->
+  <rect x="72" y="48" width="14" height="22" rx="5" fill="#a93226"/>
+</svg>
