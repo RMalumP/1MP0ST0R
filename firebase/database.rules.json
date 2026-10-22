@@ -105,6 +105,12 @@
               ".validate": false
             }
           },
+          "waiting": {
+            ".validate": "newData.isBoolean()"
+          },
+          "ready": {
+            ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 2000"
+          },
           "eliminated": {
             ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 2000"
           },

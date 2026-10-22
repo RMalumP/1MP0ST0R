@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=4">
+<link rel="stylesheet" href="css/styles.css?v=5">
 </head>
 <body>
 <div class="app">
@@ -303,6 +303,12 @@
       </div>
       <div class="reveal-shown" id="on-reveal-shown"></div>
     </div>
+    <div id="on-wait-box" class="section on-wait" style="display:none;">
+      <div class="on-msg" id="on-wait-msg">Mira tu rol y pulsa Comenzar cuando estés listo.</div>
+      <button class="btn-primary" id="on-btn-ready" style="margin-top:0;">Comenzar</button>
+      <button class="btn-secondary" id="on-btn-start-all" style="display:none;">Comenzar para todos</button>
+    </div>
+    <div id="on-game-main">
     <div id="on-result"></div>
     <div id="on-timer-area" style="display:none;">
       <div class="timer-display">
@@ -327,6 +333,8 @@
     <button class="btn-ver-resultados" id="on-btn-results" style="display:none;">📋 Ver resultados</button>
     <button class="btn-secondary" id="on-btn-clear-popup" style="display:none;">Quitar aviso de eliminado a todos</button>
     <button class="end-btn" id="on-btn-end" style="display:none;">Terminar ronda</button>
+    </div>
+    <button class="end-btn" id="on-btn-cancel-wait" style="display:none;">Cancelar ronda</button>
     <button class="btn-secondary btn-ghost" id="on-btn-leave">Salir de la sala</button>
   </div>
 
@@ -5030,8 +5038,8 @@
   ]
 }
 </script>
-<script src="js/script.js?v=4"></script>
-<script src="js/transport.js?v=4"></script>
-<script src="js/online.js?v=4"></script>
+<script src="js/script.js?v=5"></script>
+<script src="js/transport.js?v=5"></script>
+<script src="js/online.js?v=5"></script>
 </body>
 </html>

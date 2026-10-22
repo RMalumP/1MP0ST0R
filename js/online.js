@@ -8,7 +8,7 @@ const SES_MAX_MS = 12 * 3600 * 1000;
 const MODOS = { normal: '🎭 Normal', multiple: '🔀 Múltiple', escondite: '🕵️ Escondite' };
 const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
-  hostRoles: {}, order: [], elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
+  hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
   transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
@@ -73,7 +73,7 @@ async function conectar(modo) {
 }
 function entrarEnSala(res, roomName, name) {
   Object.assign(O, { active: true, host: !!res.esAnfitrion, uid: res.uid, roomId: res.roomId, roomName, myName: name, transporte: res.transporte || 'firebase', avisos: res.avisos || [], players: [], pub: {}, myRole: null,
-    hostRoles: {}, order: [], elim: new Set(), firstState: true, revealed: false, lastRoundShown: -1, pending: false, lastSettings: '', timerSecs: null, resultShown: '' });
+    hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), firstState: true, revealed: false, lastRoundShown: -1, pending: false, lastSettings: '', timerSecs: null, resultShown: '' });
   O.savedNames = playerNames.slice();
   O.popupSeen = Number(ssGet(POPUP_KEY)) || 0;
   lsSet(NAME_KEY, name); guardarSesion();
@@ -143,13 +143,14 @@ function onMsg(m) {
     case 'expulsado': onExpulsado(); break;
     case 'clave': if (O.host) hostOnClave(m); break;
     case 'palabras': if (O.host) hostOnPalabras(m); break;
+    case 'listo': if (O.host) hostOnListo(m); break;
     default: break;
   }
 }
 function onJugadores(lista) {
   if (!O.active) { O.early.jug = lista || []; return; }
   O.players = lista || [];
-  if (O.host) syncHostPlayers();
+  if (O.host) { syncHostPlayers(); hostComprobarListos(); }
   renderTodo();
 }
 function onConexion(c) {
@@ -164,12 +165,15 @@ function onEstado(st) {
   if (O.firstState) {
     O.firstState = false;
     if (enJuego) O.lastRoundShown = st.round;
-    if (O.host && enJuego) recuperarRolesHost();
+    if (O.host && enJuego) { recuperarRolesHost(); O.readySet = new Set(parse(st.ready, [])); }
     if (O.host && st.phase === 'alcalde') { volverALobby(true); return; } // el reparto pendiente se perdió al recargar
   } else if (st.phase === 'playing' && st.round !== O.lastRoundShown) {
     O.lastRoundShown = st.round; O.revealed = false;
-    if (st.starting) showStartingPlayerDialog(escapeHtml(st.starting));
+    if (st.starting) { if (st.waiting === true) O.startMsg = st.starting; else showStartingPlayerDialog(escapeHtml(st.starting)); }
   }
+  // El aviso de quién empieza sale cuando termina la espera inicial (todos listos), no antes.
+  if (st.phase === 'playing' && st.waiting !== true && O.startMsg) { const q = O.startMsg; O.startMsg = null; showStartingPlayerDialog(escapeHtml(q)); }
+  if (st.phase !== 'playing') O.startMsg = null;
   if (!enJuego) cerrarPopup(false);
   revisarPopup();
   route(); renderTodo();
@@ -258,6 +262,7 @@ function renderLobby() {
 function renderGame() {
   if (!$('on-reveal-card')) return;
   const s = ajustes();
+  renderEspera();
   const b = $('on-mode-badge'); b.innerHTML = '';
   if (s.mode) b.appendChild(el('span', 'mode-badge ' + (s.mode === 'escondite' ? 'escondite' : s.mode), (MODOS[s.mode] || s.mode)));
   $('on-player-name').textContent = O.myName;
@@ -267,6 +272,46 @@ function renderGame() {
   fin.textContent = O.pub.result ? 'Nueva ronda' : 'Terminar ronda';
   $('on-btn-results').style.display = O.host ? 'block' : 'none';
   $('on-btn-clear-popup').style.display = (O.host && O.pub.popup) ? 'block' : 'none';
+}
+// ---------- espera inicial: cada móvil ve su rol y pulsa «Comenzar»; cuando todos lo hacen sale la pantalla de partida ----------
+function esperando() { return O.pub.phase === 'playing' && O.pub.waiting === true; }
+function listos() { return new Set(parse(O.pub.ready, [])); }
+function renderEspera() {
+  const w = esperando(), box = $('on-wait-box'); if (!box) return;
+  box.style.display = w ? 'block' : 'none';
+  $('on-game-main').style.display = w ? 'none' : 'block';
+  $('on-btn-cancel-wait').style.display = (w && O.host) ? 'block' : 'none';
+  if (!w) return;
+  const ready = listos(), yo = ready.has(O.uid) || O.readySent === O.pub.round;
+  const total = O.players.length || (O.order || []).length;
+  const btn = $('on-btn-ready');
+  btn.disabled = yo || !O.myRole;
+  btn.textContent = yo ? 'Esperando a los demás…' : 'Comenzar';
+  $('on-wait-msg').textContent = 'Mira tu rol (toca la tarjeta) y pulsa Comenzar cuando estés listo. Listos: ' + ready.size + ' de ' + total + '.';
+  $('on-btn-start-all').style.display = O.host ? 'block' : 'none';
+}
+function marcarListo() {
+  if (!esperando() || !O.myRole) return;
+  O.readySent = O.pub.round; vibrate(20); renderEspera();
+  if (O.host) hostOnListo({ de: O.uid });
+  else Transport.enviar('host', { tipo: 'listo' }).catch(e => { O.readySent = -1; renderEspera(); errorEnvio(e); });
+}
+function hostOnListo(m) {
+  if (!O.host || !esperando()) return;
+  if (!O.order.includes(m.de) && !O.hostRoles[m.de]) return;
+  if (!O.readySet.has(m.de)) { O.readySet.add(m.de); Transport.enviar('todos', { tipo: 'estado', ready: JSON.stringify([...O.readySet]) }).catch(errorEnvio); }
+  hostComprobarListos();
+}
+// Empieza sola cuando todos los jugadores conectados han pulsado Comenzar.
+function hostComprobarListos() {
+  if (!O.host || !esperando() || O.starting) return;
+  const ids = O.players.filter(p => p.yo || p.conectado).map(p => p.id);
+  if (ids.length && ids.every(id => O.readySet.has(id))) hostComenzarTodos(true);
+}
+function hostComenzarTodos(auto) {
+  if (!O.host || !esperando()) return;
+  O.starting = true;
+  Transport.enviar('todos', { tipo: 'estado', waiting: false }).then(() => { if (!auto) vibrate(25); }).catch(errorEnvio).finally(() => { O.starting = false; });
 }
 function renderCard() {
   const card = $('on-reveal-card'), shown = $('on-reveal-shown'); if (!card) return;
@@ -561,10 +606,10 @@ function dealRound() {
     O.hostRoles[r.uid] = { role: r.doc.role, res: r.res, name: nombreDe(r.uid) };
   }
   const ini = (state.customOn && state.alcaldePlayer) ? state.alcaldePlayer : Math.floor(Math.random() * n) + 1;
-  O.elim = new Set(); O.timerSecs = null; O.vibSecs = -1;
+  O.elim = new Set(); O.timerSecs = null; O.vibSecs = -1; O.readySet = new Set(); O.readySent = -1;
   const estado = {
     phase: 'playing', round: ronda, settings: JSON.stringify(settingsObj()), starting: nombreDe(O.order[ini - 1]).slice(0, 24),
-    alcalde: null, alcaldeName: null, alcaldeWords: null, eliminated: '[]', popup: null, result: null,
+    alcalde: null, alcaldeName: null, alcaldeWords: null, eliminated: '[]', popup: null, result: null, waiting: true, ready: '[]',
     timer: state.timerOn ? { running: false, remaining: state.timerSeconds, at: Transport.ahora() } : null
   };
   Transport.enviar('todos', { tipo: 'reparto', roles, estado }).catch(e => { O.hostRoles = {}; errorEnvio(e); });
@@ -627,8 +672,8 @@ function hostResultados() {
 }
 function volverALobby(silencioso) {
   if (!O.host) return;
-  O.hostRoles = {}; O.elim = new Set(); O.pending = false; O.timerSecs = null;
-  Transport.enviar('todos', { tipo: 'reparto', roles: null, estado: { phase: 'lobby', round: O.pub.round || 0, settings: JSON.stringify(settingsObj()), starting: null, alcalde: null, alcaldeName: null, alcaldeWords: null, timer: null, eliminated: null, popup: null, result: null } })
+  O.hostRoles = {}; O.elim = new Set(); O.pending = false; O.timerSecs = null; O.readySet = new Set();
+  Transport.enviar('todos', { tipo: 'reparto', roles: null, estado: { phase: 'lobby', round: O.pub.round || 0, settings: JSON.stringify(settingsObj()), starting: null, alcalde: null, alcaldeName: null, alcaldeWords: null, timer: null, eliminated: null, popup: null, result: null, waiting: null, ready: null } })
     .catch(errorEnvio);
   O.lastSettings = JSON.stringify(settingsObj());
   if (!silencioso) vibrate(30);
@@ -690,6 +735,9 @@ function bind() {
   $('on-reveal-card').addEventListener('click', () => { if (!O.myRole) return; O.revealed = !O.revealed; vibrate(O.revealed ? 25 : 15); renderCard(); });
   $('on-btn-results').addEventListener('click', () => { hostResultados(); vibrate(15); });
   $('on-btn-end').addEventListener('click', hostTerminar);
+  $('on-btn-ready').addEventListener('click', marcarListo);
+  $('on-btn-start-all').addEventListener('click', () => hostComenzarTodos(false));
+  $('on-btn-cancel-wait').addEventListener('click', () => { if (confirm('¿Cancelar la ronda y volver al lobby?')) volverALobby(false); });
   $('on-btn-clear-popup').addEventListener('click', hostQuitarAviso);
   $('on-btn-timer-start').addEventListener('click', hostTimerStart);
   $('on-btn-timer-reset').addEventListener('click', hostTimerReset);

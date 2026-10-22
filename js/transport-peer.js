@@ -26,7 +26,7 @@ const HB_MS = 8000;         // latido del jugador
 const SILENCIO_MS = 25000;  // sin noticias de la otra parte durante este tiempo = conexión perdida
 const MAX_MENSAJE = 6000;   // tamaño máximo (caracteres) de un mensaje de jugador al anfitrión
 const SNAP_MAX_MS = 12 * 3600 * 1000;
-const PERMITIDOS = ['clave', 'palabras']; // tipos de mensaje que un jugador puede mandar al anfitrión
+const PERMITIDOS = ['clave', 'palabras', 'listo']; // tipos de mensaje que un jugador puede mandar al anfitrión
 
 let sala = null;
 const cbs = { msg: [], jug: [], con: [] };
