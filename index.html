@@ -5,10 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>El Impostor</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Impostor">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=7">
+<link rel="stylesheet" href="css/styles.css?v=8">
 </head>
 <body>
 <div class="app">
@@ -17,6 +24,10 @@
     <div class="subtitle">Descubre · Engaña · Acusa</div>
   </header>
 
+  <div id="on-takeover-banner" class="on-banner" style="display:none;">
+    <div>El anfitrión no está conectado desde hace un rato. Si no vuelve, puedes continuar tú como anfitrión.</div>
+    <div class="on-banner-btns"><button class="btn-secondary" id="on-btn-takeover">Ser el nuevo anfitrión</button></div>
+  </div>
   <div id="on-resume-banner" class="on-banner" style="display:none;">
     <div id="on-resume-text"></div>
     <div class="on-banner-btns"><button class="btn-secondary" id="on-resume-retry">Volver a la sala</button><button class="btn-secondary btn-ghost" id="on-resume-discard">Descartar</button></div>
@@ -27,6 +38,8 @@
     <div class="home-wrap">
       <button class="home-btn" id="btn-home-local"><span class="home-ico">📱</span><span class="home-title">Un solo móvil</span><span class="home-sub">Se pasa de mano en mano</span></button>
       <button class="home-btn" id="btn-home-online"><span class="home-ico">🌐</span><span class="home-title">Online</span><span class="home-sub">Cada jugador desde su móvil</span></button>
+      <button class="btn-archivo" id="btn-install" style="display:none;"><span>📲</span> Instalar la app en este móvil</button>
+      <div class="on-msg" id="install-hint" style="display:none;">En iPhone: toca Compartir y «Añadir a pantalla de inicio» para instalar la app.</div>
     </div>
   </div>
 
@@ -38,6 +51,8 @@
       <div class="on-warn" id="on-host-warn" style="display:none;"></div>
       <div class="on-msg" id="on-host-msg"></div>
       <div id="on-host-players" class="on-players"></div>
+      <div id="on-proposals" class="on-players"></div>
+      <button class="btn-secondary" id="on-btn-share">📨 Compartir sala</button>
       <button class="btn-secondary btn-ghost" id="on-host-leave">Cerrar la sala</button>
     </div>
     <div class="section">
@@ -156,6 +171,14 @@
             <div class="toggle-label">Vibración<small>Feedback háptico en el móvil</small></div>
             <div class="switch on" id="sw-vibrate"></div>
           </div>
+          <div class="toggle-row">
+            <div class="toggle-label">Sonido<small>Efectos al revelar roles, eliminar y ganar</small></div>
+            <div class="switch on" id="sw-sound"></div>
+          </div>
+          <div class="toggle-row on-host-only">
+            <div class="toggle-label">Votación integrada<small>Online: cada jugador vota desde su móvil</small></div>
+            <div class="switch" id="sw-vote"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -268,6 +291,7 @@
       <div class="new-cat-fields">
         <input type="text" id="on-room" class="field-inp" placeholder="Nombre de la sala" maxlength="30" autocomplete="off" autocapitalize="none">
         <input type="password" id="on-pass" class="field-inp" placeholder="Contraseña (mín. 4 caracteres)" maxlength="30" autocomplete="off">
+        <div class="on-msg" id="on-pass-strength" style="margin:0;text-align:left;"></div>
         <input type="text" id="on-name" class="field-inp" placeholder="Tu nombre" maxlength="24" autocomplete="off">
       </div>
     </div>
@@ -288,6 +312,11 @@
     <div class="section">
       <div class="section-title">Ajustes (los decide el anfitrión)</div>
       <div id="on-lobby-settings" class="on-settings"></div>
+    </div>
+    <div class="section" id="on-propose-box">
+      <div class="section-title">💡 Proponer una palabra</div>
+      <div class="timer-edit" style="margin-top:0;"><input type="text" id="on-inp-propose" maxlength="40" placeholder="Palabra para el anfitrión…" autocomplete="off"><button id="on-btn-propose">Enviar</button></div>
+      <div class="on-msg" id="on-propose-msg"></div>
     </div>
     <button class="btn-secondary" id="on-btn-cancel-round" style="display:none;">Cancelar ronda</button>
     <button class="btn-secondary btn-ghost" id="on-btn-leave-lobby">Salir de la sala</button>
@@ -315,6 +344,17 @@
     </div>
     <div id="on-game-main">
     <div id="on-result"></div>
+    <div id="on-vote-box" class="section" style="display:none;">
+      <div class="section-title">🗳 Votación</div>
+      <div class="on-msg" id="on-vote-msg"></div>
+      <div id="on-vote-list" class="on-vote-list"></div>
+      <div id="on-vote-host" style="display:none;">
+        <button class="btn-secondary" id="on-btn-vote-close">Cerrar votación</button>
+        <button class="btn-primary" id="on-btn-vote-elim" style="display:none;">Eliminar al más votado</button>
+        <button class="btn-secondary btn-ghost" id="on-btn-vote-cancel">Cancelar votación</button>
+      </div>
+    </div>
+    <button class="btn-secondary" id="on-btn-vote-start" style="display:none;">🗳 Iniciar votación</button>
     <div id="on-timer-area" style="display:none;">
       <div class="timer-display">
         <div class="timer-time" id="on-timer-time">03:00</div>
@@ -5043,8 +5083,8 @@
   ]
 }
 </script>
-<script src="js/script.js?v=7"></script>
-<script src="js/transport.js?v=7"></script>
-<script src="js/online.js?v=7"></script>
+<script src="js/script.js?v=8"></script>
+<script src="js/transport.js?v=8"></script>
+<script src="js/online.js?v=8"></script>
 </body>
 </html>

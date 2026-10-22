@@ -144,7 +144,7 @@ function suscribir() {
   escuchar(R(s.roomId, 'meta'), snap => {
     if (sala !== s) return;
     if (!snap.exists() || snap.val().session !== s.session) { emitir({ tipo: 'sala-cerrada' }); return; }
-    if (s.hostUid !== snap.val().host) { s.hostUid = snap.val().host; s.esHost = s.hostUid === uid; emitirJugadores(); }
+    if (s.hostUid !== snap.val().host) { s.hostUid = snap.val().host; s.esHost = s.hostUid === uid; emitirJugadores(); emitir({ tipo: 'anfitrion', esAnfitrion: s.esHost }); }
   });
   escuchar(R(s.roomId, 'players'), snap => {
     if (sala !== s) return;
@@ -273,6 +273,12 @@ async function enviar(destino, mensaje) {
     }
   } catch (e) { throw traducir(e); }
 }
+// Si el anfitrión lleva un rato desconectado, cualquier jugador de la sala puede pasar a ser el anfitrión (lo valida la regla de meta).
+async function tomarSala() {
+  if (!sala || sala.esHost) return;
+  try { await update(R(sala.roomId, 'meta'), { host: uid, lastActive: serverTimestamp() }); }
+  catch (e) { if (esPermiso(e)) throw errApp('anfitrion-activo', 'El anfitrión ha vuelto o ya lo ha tomado otro jugador.'); throw traducir(e); }
+}
 // El anfitrión borra la ficha (y el rol) de otro jugador; ese móvil lo detecta y sale de la sala.
 async function expulsar(id) {
   if (!sala || !sala.esHost) throw errApp('no-anfitrion', 'Solo el anfitrión puede expulsar jugadores.');
@@ -308,7 +314,7 @@ async function leerRoles() {
 
 export default {
   nombre: 'firebase',
-  crearSala, unirse, reanudar, enviar, expulsar, salir, cerrarSala, leerRoles, probar,
+  crearSala, unirse, reanudar, enviar, expulsar, tomarSala, salir, cerrarSala, leerRoles, probar,
   alRecibir(cb) { cbs.msg.push(cb); },
   alCambiarJugadores(cb) { cbs.jug.push(cb); },
   alConexion(cb) { cbs.con.push(cb); },

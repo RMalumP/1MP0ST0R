@@ -14,6 +14,14 @@ Usa al menos un móvil con **datos móviles** y otro con wifi. Online solo funci
 7b. **Espera inicial**: tras repartir, cada móvil ve su tarjeta y un botón «Comenzar»; el anfitrión tiene además «Comenzar para todos». Cuando todos los conectados pulsan (o el anfitrión fuerza), aparece la pantalla de partida y los roles siguen visibles tocando la tarjeta.
 7c. **Alcalde**: en modo Normal/Escondite, si el Alcalde escribe varias palabras se elige UNA al azar (con su pista); los grupos solo existen en Múltiple. Online: el anfitrión elige «Aleatorio» o «Siempre el anfitrión» (en ese caso nunca es impostor).
 7d. **Móvil compartido**: en el lobby, el anfitrión pulsa «👥 +1» junto a un jugador y escribe el nombre del segundo; ese móvil muestra la tarjeta oculta con el nombre y un botón «Pasar el móvil a …». ✏️ cambia nombres; «Quitar» elimina al invitado. Máx. 1 invitado por móvil.
+7e. **Relevo de anfitrión (solo Firebase)**: cierra la pestaña del anfitrión; tras ~1 min sin conexión y 25 s más, los demás ven «Ser el nuevo anfitrión». Quien lo pulsa recupera los roles y sigue la partida. En PeerJS no existe: sin anfitrión no hay sala.
+7f. **Jugadores fantasma**: quien lleva 3 min sin conexión en el lobby se quita solo (el anfitrión ve un aviso).
+7g. **Votación integrada** (opción en Opciones, solo anfitrión online): «Iniciar votación», cada móvil vota (un voto por jugador, también por cada invitado), se cierra sola cuando votan todos o el anfitrión la cierra; el anfitrión confirma «Eliminar al más votado» (empate: nadie).
+7h. **Varios invitados y orden**: hasta 2 invitados por móvil; ▲▼ reordenan a todos.
+7i. **Palabras propuestas**: un jugador envía una palabra en el lobby; el anfitrión la añade (categoría «Propuestas») o la descarta.
+7j. **Resumen final**: al ganar un bando, todos los móviles ven la tabla de roles y palabras.
+7k. **Compartir sala**: «📨 Compartir sala» envía un enlace; al abrirlo se rellenan nombre y contraseña.
+7l. **Instalar y sin conexión**: en Chrome/Android aparece «Instalar la app»; en iPhone, Compartir → Añadir a pantalla de inicio. Instalada (o ya visitada) el modo local funciona sin internet.
 8. **Eliminar / resultados**: «Ver rol» y resultados solo en el anfitrión; el aviso de eliminado sale en todos; la victoria se calcula bien.
 9. **Cronómetro**: lo controla el anfitrión; todos lo ven.
 10. **Recargar y reconectar**: recarga B en plena partida → vuelve a la sala y recupera su rol. Recarga también el anfitrión.
@@ -33,5 +41,5 @@ Usa al menos un móvil con **datos móviles** y otro con wifi. Online solo funci
 - Si un jugador borra los datos del navegador, pierde su identidad en la sala.
 - Un jugador que cierra la pestaña sin pulsar «Salir» sigue en la lista como «sin conexión» y entra en el reparto; el anfitrión puede **expulsarlo** desde el lobby.
 - Un jugador expulsado puede volver a entrar si conoce nombre y contraseña (mientras la partida esté en el lobby).
-- Las reglas de Firebase se probaron con un evaluador propio, no con el motor real: verifica con el Simulador de reglas (GUIA, paso 2).
+- Las reglas de Firebase se probaron con el emulador oficial de Realtime Database (28 comprobaciones: nadie lista salas, cada jugador solo lee su rol, solo el anfitrión escribe estado y roles, expulsar y relevo de anfitrión). Aun así, comprueba con el Simulador de reglas de la consola.
 - Todo lo online se probó contra Firebase y PeerJS simulados, no contra los servicios reales.

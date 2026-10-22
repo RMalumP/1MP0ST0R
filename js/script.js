@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: false, timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -36,6 +36,25 @@ firstImpostor: null, // primer impostor en orden de turno
 allSeen: false, // todos los jugadores han visto su carta
 eliminated: new Set(), // jugadores eliminados (1-based)
 };
+// ---- Sonidos sencillos con WebAudio (sin archivos). Se activan/desactivan en Opciones y se recuerdan en el navegador.
+let _ac = null;
+const SFX = { reveal: [[520, .08], [780, .12]], impostor: [[220, .12], [165, .22]], civil: [[520, .08], [660, .1]], pass: [[440, .06]],
+  elim: [[330, .1], [247, .1], [165, .25]], win: [[523, .12], [659, .12], [784, .12], [1047, .3]], lose: [[392, .15], [330, .15], [262, .3]],
+  tick: [[880, .05]], alarm: [[880, .15], [660, .15], [880, .15], [660, .3]], vote: [[600, .06], [800, .08]] };
+function sfx(name) {
+  if (!state.soundOn || !SFX[name]) return;
+  try {
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (_ac.state === 'suspended') _ac.resume();
+    let t = _ac.currentTime;
+    SFX[name].forEach(([f, d]) => {
+      const o = _ac.createOscillator(), g = _ac.createGain();
+      o.type = (name === 'impostor' || name === 'lose' || name === 'elim') ? 'sawtooth' : 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.15, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+      o.connect(g); g.connect(_ac.destination); o.start(t); o.stop(t + d + .02); t += d;
+    });
+  } catch (e) { /* sin audio */ }
+}
 function vibrate(ms) { if (state.vibrateOn && navigator.vibrate) { try { navigator.vibrate(ms); } catch(e){} } }
 function $(id) { return document.getElementById(id); }
 function fisherYates(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -410,6 +429,9 @@ if (onChange) onChange(state[key]);
 bindSwitch('sw-hint', 'hintOn');
 bindSwitch('sw-images', 'imagesOn');
 bindSwitch('sw-vibrate', 'vibrateOn');
+try { if (localStorage.getItem('impostor.sound') === '0') { state.soundOn = false; $('sw-sound').classList.remove('on'); } } catch (e) { /* nada */ }
+bindSwitch('sw-sound', 'soundOn', on => { try { localStorage.setItem('impostor.sound', on ? '1' : '0'); } catch (e) { /* nada */ } if (on) sfx('reveal'); });
+bindSwitch('sw-vote', 'voteOn');
 bindSwitch('sw-timer', 'timerOn', on => { $('timer-config').style.display = on ? 'block' : 'none'; });
 $('inp-timer').addEventListener('input', e => {
 let v = parseInt(e.target.value) || 10;
@@ -1035,10 +1057,10 @@ const imgE=document.createElement('div');imgE.className='word-img-wrap';shown.ap
 }
 $('reveal-card').addEventListener('click', () => {
 const card = $('reveal-card');
-if (!state.revealed) { buildRevealContent(); card.classList.add('revealed'); state.revealed = true; vibrate(25); }
-else { card.classList.remove('revealed'); state.revealed = false; vibrate(15); }
+if (!state.revealed) { buildRevealContent(); card.classList.add('revealed'); state.revealed = true; vibrate(25); sfx(state.impostorSet.has(state.currentPlayer) ? 'impostor' : 'civil'); }
+else { card.classList.remove('revealed'); state.revealed = false; vibrate(15); sfx('pass'); }
 });
-$('btn-next').addEventListener('click', () => { state.currentPlayer = state.currentPlayer < state.numPlayers ? state.currentPlayer + 1 : 1; renderTurn(); vibrate(20); });
+$('btn-next').addEventListener('click', () => { state.currentPlayer = state.currentPlayer < state.numPlayers ? state.currentPlayer + 1 : 1; renderTurn(); vibrate(20); sfx('pass'); });
 $('btn-go-game').addEventListener('click', () => { vibrate(40); goToGame(); });
 $('btn-back-setup').addEventListener('click', () => { resetRound(); showScreen('screen-setup'); });
 function showStartingPlayerDialog(playerName) {
@@ -1091,8 +1113,8 @@ if (state.timerRunning || state.timerRemaining<=0) return;
 state.timerRunning=true; $('btn-timer-start').textContent='Pausar'; renderTimer();
 state.timerInterval = setInterval(()=>{
 state.timerRemaining--;
-if (state.timerRemaining<=10 && state.timerRemaining>0) vibrate(40);
-if (state.timerRemaining<=0) { state.timerRemaining=0; clearInterval(state.timerInterval); state.timerInterval=null; state.timerRunning=false; $('btn-timer-start').textContent='Iniciar'; vibrate([200,100,200,100,400]); }
+if (state.timerRemaining<=10 && state.timerRemaining>0) { vibrate(40); sfx('tick'); }
+if (state.timerRemaining<=0) { sfx('alarm'); state.timerRemaining=0; clearInterval(state.timerInterval); state.timerInterval=null; state.timerRunning=false; $('btn-timer-start').textContent='Iniciar'; vibrate([200,100,200,100,400]); }
 renderTimer();
 },1000);
 }
@@ -1150,7 +1172,7 @@ function showRolModal(playerNum) {
 const name = playerNames[playerNum-1] || ('Jugador ' + playerNum);
 const isImpostor = state.impostorSet.has(playerNum);
 const overlay = document.createElement('div');
-overlay.className = 'rol-overlay';
+overlay.className = 'rol-overlay'; sfx('elim');
 const verdictClass = isImpostor ? 'impostor' : 'civil';
 const icon = isImpostor ? '🎭' : '👤';
 const verdict = isImpostor ? 'IMPOSTOR ELIMINADO' : 'CIVIL ELIMINADO';
@@ -1195,6 +1217,7 @@ function showVictory(winner) {
 if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
 state.timerRunning = false;
 const msg = $("victory-msg");
+sfx(winner === 'civiles' ? 'win' : 'lose');
 if (winner === 'civiles') {
 msg.innerHTML = '<div class="victory-emoji">🏆</div><div class="victory-title civiles">Han ganado los Civiles</div><div class="victory-sub">Ha ganado la verdad.</div>';
 } else {
@@ -1636,3 +1659,27 @@ showScreen('screen-home');
 
 $('alc-rand').addEventListener('click', () => { state.alcaldeMode = 'random'; updateModeUI(); vibrate(10); });
 $('alc-host').addEventListener('click', () => { state.alcaldeMode = 'host'; updateModeUI(); vibrate(10); });
+
+// Palabra propuesta por un jugador (online): se guarda en la categoría «Propuestas» de la lista del anfitrión.
+function anadirPalabraPropuesta(w) {
+let cat = CATEGORIES.find(c => c.id === 'PROPUESTAS');
+if (!cat) { cat = { id: 'PROPUESTAS', name: 'Propuestas', words: [], blocked: false, noImages: false, image: '', images: {}, unsorted: false }; CATEGORIES.push(cat); }
+const key = w.toLowerCase().replace(/\s+/g, ' ');
+if (cat.words.some(x => x.toLowerCase().replace(/\s+/g, ' ') === key)) return false;
+cat.words.push(w); state.selectedCats.add(cat.id);
+buildCatGrid(); updateAllBtn();
+return true;
+}
+
+// ===== PWA: registro del service worker y botón de instalar =====
+(function () {
+let evInstalar = null;
+const instalada = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+if ('serviceWorker' in navigator && window.isSecureContext) {
+window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => { /* sin service worker: el juego funciona igual */ }); });
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); evInstalar = e; if (!instalada()) $('btn-install').style.display = 'flex'; });
+window.addEventListener('appinstalled', () => { evInstalar = null; $('btn-install').style.display = 'none'; });
+$('btn-install').addEventListener('click', () => { if (!evInstalar) return; evInstalar.prompt(); evInstalar.userChoice.finally(() => { evInstalar = null; $('btn-install').style.display = 'none'; }); });
+if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !instalada()) $('install-hint').style.display = 'block';
+})();

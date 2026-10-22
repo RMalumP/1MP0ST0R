@@ -121,6 +121,8 @@ const Transport = (function () {
     crearSala, unirse, reanudar,
     enviar: (d, m) => activo ? activo.impl.enviar(d, m) : sinSala(),
     expulsar: id => activo ? activo.impl.expulsar(id) : sinSala(),
+    soportaTomarSala: () => !!(activo && activo.impl.tomarSala),
+    tomarSala: () => activo && activo.impl.tomarSala ? activo.impl.tomarSala() : sinSala(),
     salir: () => terminar('salir'),
     cerrarSala: () => terminar('cerrarSala'),
     leerRoles: () => activo ? activo.impl.leerRoles() : Promise.resolve({}),

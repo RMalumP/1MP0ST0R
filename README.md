@@ -16,6 +16,7 @@ js/script.js                Lógica del juego (modo local), lista de palabras, G
 js/online.js                Modo online: sala, lobby, reparto de roles, eliminaciones, cronómetro, expulsar jugadores
 js/transport.js             Fachada de transporte: elige Firebase o PeerJS automáticamente
 js/transport-firebase.js    Transporte principal (Firebase Realtime Database + Auth anónima). Aquí va firebaseConfig
+sw.js, manifest.webmanifest, icons/  App instalable (PWA) y modo local sin conexión
 js/transport-peer.js        Transporte de respaldo (PeerJS/WebRTC). Aquí va TURN_PROXY_URL
 firebase/database.rules.json  Reglas de seguridad de Realtime Database (se pegan en la consola de Firebase)
 cloudflare/worker.js        Worker de Cloudflare que reparte las credenciales TURN sin ponerlas en el repo
@@ -48,5 +49,8 @@ En pantalla, «Archivo de palabras» permite **Guardar** (descarga `palabras.jso
 - La sala se identifica por SHA-256(nombre + contraseña): no hay listado de salas y la contraseña nunca se guarda ni se envía.
 - El anfitrión reparte los roles; cada móvil recibe solo su tarjeta ya resuelta.
 - Un móvil puede servir para **dos jugadores** (el anfitrión pulsa «👥 +1»); ese móvil alterna las tarjetas con un botón «Pasar». El anfitrión también puede cambiar nombres (✏️).
+- **Relevo de anfitrión** (Firebase): si el anfitrión desaparece, otro jugador puede continuar la sala. Los jugadores sin conexión del lobby se quitan solos a los 3 minutos.
+- **Votación integrada** (opcional), **palabras propuestas** por los jugadores, **resumen final** para todos, hasta 2 invitados por móvil y orden de jugadores editable.
+- **Compartir sala** con un enlace; **sonidos** (se pueden apagar en Opciones); app **instalable** y modo local **sin conexión**.
 - El anfitrión puede **expulsar** a un jugador desde el panel de la sala (en el lobby).
 - Si Firebase no responde en ~5 s, el anfitrión crea la sala por PeerJS (su móvil hace de servidor: no debe cerrar ni recargar la pestaña).

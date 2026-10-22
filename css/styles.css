@@ -34,3 +34,17 @@
 .home-sub{color:var(--text-faded);font-size:.8rem;letter-spacing:.1em}
 .on-kick + .on-kick{margin-left:6px}
 .on-player{flex-wrap:wrap}
+
+.on-host-only{display:none}.online-host .on-host-only{display:flex}
+.on-vote-list{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.on-vote-btn{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--bg-elevated);border:1.5px solid var(--border);border-radius:12px;color:var(--text);font-family:'Outfit',sans-serif;font-size:.95rem;font-weight:600;cursor:pointer}
+.on-vote-btn.sel{border-color:var(--accent);background:var(--accent-soft)}
+.on-vote-btn:active{transform:scale(.98)}
+.on-prop{justify-content:space-between}
+.on-prop .on-kick{margin-left:6px}
+@keyframes popIn{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+.reveal-card.revealed .reveal-shown{animation:popIn .28s ease}
+.rol-card{animation:popIn .25s ease}
+.victory-emoji{animation:popIn .5s ease}
+@media (prefers-reduced-motion:reduce){.reveal-card.revealed .reveal-shown,.rol-card,.victory-emoji{animation:none}}
+.pw-weak{color:var(--accent)}.pw-mid{color:var(--gold)}.pw-ok{color:var(--green)}

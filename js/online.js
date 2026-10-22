@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, offSince: {}, hostOffSince: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -31,18 +31,18 @@ function aviso(msg, ms) {
 }
 function errorEnvio(e) { console.error(e); aviso((e && e.message) || 'No se pudo enviar. Comprueba tu conexión.'); }
 // Datos públicos extra (los escribe el anfitrión): g = invitados que comparten móvil [{o: uid del dueño, n: nombre}], a = nombres cambiados {uid: nombre}.
-function extra() { const e = parse(O.pub.extra, {}); return { g: Array.isArray(e.g) ? e.g : [], a: (e.a && typeof e.a === 'object') ? e.a : {} }; }
+function extra() { const e = parse(O.pub.extra, {}); return { g: Array.isArray(e.g) ? e.g : [], a: (e.a && typeof e.a === 'object') ? e.a : {}, o: Array.isArray(e.o) ? e.o : [] }; }
 // Asientos = jugadores reales + sus invitados (id 'g:<uid del dueño>'). Un móvil puede llevar dos asientos.
 function seats() {
   const ex = extra(), out = [];
   O.players.forEach(p => {
     out.push({ ...p, nombre: ex.a[p.id] || p.nombre });
-    const g = ex.g.find(x => x.o === p.id);
-    if (g) out.push({ id: 'g:' + p.id, nombre: g.n, owner: p.id, conectado: p.conectado, esAnfitrion: false, yo: false, guest: true });
+    ex.g.filter(x => x.o === p.id).forEach(g => out.push({ id: 'g:' + p.id + ':' + g.k, nombre: g.n, owner: p.id, k: g.k, conectado: p.conectado, esAnfitrion: false, yo: false, guest: true }));
   });
+  if (ex.o.length) { const pos = id => { const i = ex.o.indexOf(id); return i < 0 ? 1e6 : i; }; out.sort((a, b) => pos(a.id) - pos(b.id)); }
   return out;
 }
-const seatOwner = id => String(id).startsWith('g:') ? String(id).slice(2) : id;
+const seatOwner = id => String(id).startsWith('g:') ? String(id).split(':')[1] : id;
 function miNombre() { return extra().a[O.uid] || O.myName; }
 function nombreDe(uid) {
   const p = seats().find(x => x.id === uid); if (p) return p.nombre;
@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : 'rand' };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : 'rand', vote: !!state.voteOn };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -81,6 +81,7 @@ async function conectar(modo) {
   try {
     const res = modo === 'crear' ? await Transport.crearSala(room, pass, name) : await Transport.unirse(room, pass, name);
     entrarEnSala(res, room.trim(), name);
+    O.shareData = { room: room.trim(), pass };
   } catch (e) {
     err.textContent = (e && e.message) || 'No se pudo conectar.';
   } finally { setBusy(false); }
@@ -110,7 +111,7 @@ function limpiar() {
   clearInterval(O.tick); clearInterval(O.setInt); O.tick = O.setInt = null;
   cerrarPopup(false); liberarWake();
   O.active = false; O.host = false; O.pub = {}; O.myRole = null; O.hostRoles = {}; O.players = []; O.order = []; O.pending = false;
-  O.early = { jug: null, estado: null, rol: null };
+  O.early = { jug: null, estado: null, rol: null }; O.proposals = []; O.shareData = null; O.votes = {};
   borrarSesion();
   document.body.classList.remove('online-on');
   $('screen-setup').classList.remove('online-host');
@@ -139,6 +140,57 @@ function onExpulsado() {
   Transport.salir().catch(() => {});
   limpiar();
 }
+// ---------- palabras propuestas por los jugadores (el anfitrión las acepta o descarta) ----------
+function hostOnPropuesta(m) {
+  const texto = String(m.texto || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+  if (!O.host || !texto || O.proposals.length >= 30) return;
+  if (O.proposals.filter(p => p.de === m.de).length >= 5) return;
+  if (O.proposals.some(p => p.texto.toLowerCase() === texto.toLowerCase())) return;
+  O.proposals.push({ de: m.de, nombre: nombreDe(m.de), texto });
+  vibrate(15); renderProposals();
+}
+function renderProposals() {
+  const box = $('on-proposals'); if (!box) return;
+  box.innerHTML = '';
+  O.proposals.forEach((p, i) => {
+    const d = el('div', 'on-player on-prop'); d.appendChild(el('span', 'on-pname', p.nombre + ': «' + p.texto + '»'));
+    const ok = el('button', 'on-kick', 'Añadir'), no = el('button', 'on-kick', '✕'); ok.type = no.type = 'button';
+    ok.addEventListener('click', () => { O.proposals.splice(i, 1); aviso(anadirPalabraPropuesta(p.texto) ? '«' + p.texto + '» añadida a la categoría Propuestas.' : 'Esa palabra ya estaba.'); renderProposals(); });
+    no.addEventListener('click', () => { O.proposals.splice(i, 1); renderProposals(); });
+    d.append(ok, no); box.appendChild(d);
+  });
+}
+function enviarPropuesta() {
+  const inp = $('on-inp-propose'), t = inp.value.trim().slice(0, 40), msg = $('on-propose-msg');
+  if (!t || Date.now() - O.lastPropose < 2000) return;
+  O.lastPropose = Date.now();
+  Transport.enviar('host', { tipo: 'propuesta', texto: t }).then(() => { inp.value = ''; msg.textContent = 'Enviada ✓ El anfitrión decidirá si la añade.'; }).catch(errorEnvio);
+}
+// ---------- compartir la sala (enlace con el nombre y, si se quiere, la contraseña en el fragmento #, que no viaja a ningún servidor) ----------
+function hostCompartir() {
+  const d = O.shareData, base = location.href.split('#')[0];
+  let url = base, texto = 'Sala del Impostor: ' + O.roomName;
+  if (d && confirm('El enlace incluirá la contraseña de la sala (quien lo reciba entrará directamente). ¿Compartirlo así?')) { url = base + '#s=' + encodeURIComponent(d.room + '\n' + d.pass); texto += ' · Contraseña: ' + d.pass; }
+  else texto += ' (pídele la contraseña al anfitrión)';
+  if (navigator.share) navigator.share({ title: 'El Impostor', text: texto, url }).catch(() => {});
+  else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto + '\n' + url).then(() => aviso('Enlace copiado.'), () => prompt('Copia este enlace:', url));
+  else prompt('Copia este enlace:', url);
+}
+function aplicarEnlace() {
+  const m = /^#s=(.+)$/.exec(location.hash || ''); if (!m) return false;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* nada */ }
+  let partes; try { partes = decodeURIComponent(m[1]).split('\n'); } catch (e) { return false; }
+  if (!partes[0]) return false;
+  abrirMenu(); $('on-room').value = partes[0].slice(0, 30); if (partes[1]) $('on-pass').value = partes[1].slice(0, 30);
+  fuerzaClave(); return true;
+}
+function fuerzaClave() {
+  const p = $('on-pass').value, o = $('on-pass-strength'); if (!o) return;
+  if (!p) { o.textContent = ''; return; }
+  const pts = (p.length >= 10) + (p.length >= 14) + (/[a-z]/.test(p) && /[A-Z]/.test(p)) + /\d/.test(p) + /[^A-Za-z0-9]/.test(p);
+  const [txt, cls] = p.trim().length < 4 ? ['Muy corta (mínimo 4)', 'pw-weak'] : pts <= 1 ? ['Débil: usa 10 o más caracteres para que no la adivinen', 'pw-weak'] : pts <= 3 ? ['Media', 'pw-mid'] : ['Fuerte', 'pw-ok'];
+  o.textContent = 'Contraseña: ' + txt; o.className = 'on-msg ' + cls;
+}
 function hostExpulsar(p) {
   if (!O.host || p.esAnfitrion || p.yo) return;
   if (!confirm('¿Expulsar a ' + p.nombre + ' de la sala?')) return;
@@ -149,7 +201,7 @@ function hostSetExtra(fn) {
   if (!O.host || (O.pub.phase || 'lobby') !== 'lobby') return;
   const ex = extra(); fn(ex);
   const txt = JSON.stringify(ex);
-  if (txt.length > 1800) { aviso('Demasiados cambios de nombre o invitados.'); return; }
+  if (txt.length > 2800) { aviso('Demasiados cambios de nombre o invitados.'); return; }
   Transport.enviar('todos', { tipo: 'estado', extra: txt }).catch(errorEnvio);
 }
 function hostAnadirInvitado(ownerId) {
@@ -158,14 +210,21 @@ function hostAnadirInvitado(ownerId) {
   const n = (prompt('Nombre del segundo jugador que usará este móvil:', base) || '').trim().slice(0, 24);
   if (!n) return;
   if (seats().some(s => s.nombre.toLowerCase() === n.toLowerCase())) { aviso('Ya hay un jugador con ese nombre.'); return; }
-  hostSetExtra(ex => { ex.g = ex.g.filter(x => x.o !== ownerId); ex.g.push({ o: ownerId, n }); });
+  hostSetExtra(ex => { const k = ex.g.reduce((m, x) => Math.max(m, x.k || 0), 0) + 1; ex.g.push({ o: ownerId, n, k }); });
 }
-function hostQuitarInvitado(ownerId) { hostSetExtra(ex => { ex.g = ex.g.filter(x => x.o !== ownerId); }); }
+function hostQuitarInvitado(ownerId, k) { hostSetExtra(ex => { ex.g = ex.g.filter(x => !(x.o === ownerId && (k === undefined || x.k === k))); }); }
+function hostMover(id, dir) {
+  hostSetExtra(ex => {
+    const ids = seats().map(s => s.id), i = ids.indexOf(id), j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]]; ex.o = ids;
+  });
+}
 function hostRenombrar(p) {
   const n = (prompt('Nuevo nombre:', p.nombre) || '').trim().slice(0, 24);
   if (!n || n === p.nombre) return;
   if (seats().some(s => s.id !== p.id && s.nombre.toLowerCase() === n.toLowerCase())) { aviso('Ya hay un jugador con ese nombre.'); return; }
-  hostSetExtra(ex => { if (p.guest) { const g = ex.g.find(x => x.o === p.owner); if (g) g.n = n; } else ex.a[p.id] = n; });
+  hostSetExtra(ex => { if (p.guest) { const g = ex.g.find(x => x.o === p.owner && x.k === p.k); if (g) g.n = n; } else ex.a[p.id] = n; });
 }
 
 // ---------- recibir mensajes ----------
@@ -178,9 +237,12 @@ function onMsg(m) {
     case 'rol': onRol(m); break;
     case 'sala-cerrada': onSalaCerrada(); break;
     case 'expulsado': onExpulsado(); break;
+    case 'anfitrion': if (m.esAnfitrion) volverseAnfitrion(); else perderAnfitrion(); break;
     case 'clave': if (O.host) hostOnClave(m); break;
     case 'palabras': if (O.host) hostOnPalabras(m); break;
     case 'listo': if (O.host) hostOnListo(m); break;
+    case 'voto': if (O.host) hostOnVoto(m); break;
+    case 'propuesta': if (O.host) hostOnPropuesta(m); break;
     default: break;
   }
 }
@@ -246,11 +308,11 @@ function chip(p, ctrl) {
   if (!p.conectado) d.appendChild(el('span', 'on-off', 'sin conexión'));
   if (ctrl) {
     const btn = (txt, title, fn, extraCls) => { const b = el('button', 'on-kick' + (extraCls || ''), txt); b.type = 'button'; b.title = title; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); d.appendChild(b); };
+    btn('▲', 'Subir en el orden', () => hostMover(p.id, -1)); btn('▼', 'Bajar en el orden', () => hostMover(p.id, 1));
     btn('✏️', 'Cambiar nombre', () => hostRenombrar(p));
-    if (p.guest) btn('Quitar', 'Quitar al jugador invitado', () => hostQuitarInvitado(p.owner));
+    if (p.guest) btn('Quitar', 'Quitar al jugador invitado', () => hostQuitarInvitado(p.owner, p.k));
     else {
-      const tiene = extra().g.some(x => x.o === p.id);
-      if (!tiene) btn('👥 +1', 'Este móvil lo usarán dos jugadores', () => hostAnadirInvitado(p.id));
+      if (extra().g.filter(x => x.o === p.id).length < 2) btn('👥 +1', 'Otro jugador usará este móvil', () => hostAnadirInvitado(p.id));
       if (!p.esAnfitrion && !p.yo) btn('Expulsar', 'Expulsar de la sala', () => hostExpulsar(p));
     }
   }
@@ -275,6 +337,7 @@ function renderHostPanel() {
   const list = $('on-host-players'); list.innerHTML = '';
   const lobby = (O.pub.phase || 'lobby') === 'lobby';
   seats().forEach(pl => list.appendChild(chip(pl, lobby)));
+  renderProposals();
   const n = seats().length, off = O.players.filter(x => !x.conectado).length;
   let msg = n < 3 ? 'Faltan jugadores: se necesitan al menos 3 (ahora ' + n + '). Que se unan con el nombre de la sala y la contraseña.' : n + ' jugadores en la sala.';
   if (n >= 3 && off > 0) msg += ' ' + off + ' sin conexión.';
@@ -284,6 +347,7 @@ function settingsLines() {
   const s = ajustes(); if (!s.mode) return ['Esperando los ajustes del anfitrión…'];
   const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí' : 'no')];
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
+  l.push('Votación integrada: ' + (s.vote ? 'sí' : 'no'));
   return l;
 }
 function renderLobby() {
@@ -299,6 +363,7 @@ function renderLobby() {
   const box = $('on-lobby-settings'); box.innerHTML = '';
   settingsLines().forEach(t => box.appendChild(el('div', 'on-setting', t)));
   $('on-btn-cancel-round').style.display = (O.host && ph === 'alcalde') ? 'block' : 'none';
+  const pb = $('on-propose-box'); if (pb) pb.style.display = (!O.host && ph === 'lobby') ? 'block' : 'none';
 }
 
 // ---------- pantalla de juego ----------
@@ -310,7 +375,7 @@ function renderGame() {
   if (s.mode) b.appendChild(el('span', 'mode-badge ' + (s.mode === 'escondite' ? 'escondite' : s.mode), (MODOS[s.mode] || s.mode)));
   $('on-player-name').textContent = vistaActual().nombre;
   $('on-round-label').textContent = 'Ronda ' + (O.pub.round || 1) + ' · Sala ' + O.roomName;
-  renderCard(); renderResult(); renderGamePlayers(); renderTimerControls();
+  renderCard(); renderResult(); renderGamePlayers(); renderTimerControls(); renderVoto();
   const fin = $('on-btn-end'); fin.style.display = O.host ? 'block' : 'none';
   fin.textContent = O.pub.result ? 'Nueva ronda' : 'Terminar ronda';
   $('on-btn-results').style.display = O.host ? 'block' : 'none';
@@ -319,6 +384,61 @@ function renderGame() {
 // ---------- espera inicial: cada móvil ve su rol y pulsa «Comenzar»; cuando todos lo hacen sale la pantalla de partida ----------
 function esperando() { return O.pub.phase === 'playing' && O.pub.waiting === true; }
 function listos() { return new Set(parse(O.pub.ready, [])); }
+// ---------- votación integrada (opcional): cada móvil vota; el anfitrión confirma la eliminación ----------
+function voto() { return parse(O.pub.vote, null); }
+function renderVoto() {
+  const box = $('on-vote-box'), ini = $('on-btn-vote-start'); if (!box) return;
+  const v = voto(), activo = !!ajustes().vote && O.pub.phase === 'playing' && !esperando();
+  ini.style.display = (activo && O.host && !v) ? 'block' : 'none';
+  if (!activo || !v) { box.style.display = 'none'; return; }
+  if (O.myVotesId !== v.id) { O.myVotes = {}; O.myVotesId = v.id; }
+  box.style.display = 'block';
+  const list = $('on-vote-list'), msg = $('on-vote-msg'); list.innerHTML = '';
+  $('on-vote-host').style.display = O.host ? 'block' : 'none';
+  $('on-btn-vote-close').style.display = (O.host && v.open) ? 'block' : 'none';
+  $('on-btn-vote-elim').style.display = (O.host && !v.open && v.win) ? 'block' : 'none';
+  if (v.open) {
+    const vista = vistaActual(), yo = vista.seat, vivos = seats().filter(x => !O.elim.has(x.id));
+    if (O.elim.has(yo)) { msg.textContent = 'Estás eliminado: no puedes votar. Han votado ' + (v.voted || []).length + '.'; return; }
+    msg.textContent = 'Vota a quién eliminar' + (vista.compartido ? ' (como ' + vista.nombre + ')' : '') + '. Han votado ' + (v.voted || []).length + ' de ' + vivos.length + '.';
+    vivos.filter(x => x.id !== yo).forEach(x => {
+      const b = el('button', 'on-vote-btn' + (O.myVotes[yo] === x.id ? ' sel' : ''), x.nombre); b.type = 'button';
+      b.addEventListener('click', () => votar(yo, x.id)); list.appendChild(b);
+    });
+  } else {
+    msg.textContent = v.win ? 'Más votado: ' + v.winName + '.' : 'Empate: nadie queda eliminado.';
+    (v.res || []).forEach(r => list.appendChild(el('div', 'on-setting', r[0] + ' — ' + r[1] + (r[1] === 1 ? ' voto' : ' votos'))));
+  }
+}
+function votar(seat, objetivo) {
+  O.myVotes[seat] = objetivo; vibrate(15); sfx('vote'); renderVoto();
+  if (O.host) hostOnVoto({ de: O.uid, como: seat, a: objetivo });
+  else Transport.enviar('host', { tipo: 'voto', como: seat, a: objetivo }).catch(errorEnvio);
+}
+function hostIniciarVoto() {
+  if (!O.host || O.pub.result || esperando()) return;
+  O.votes = {};
+  Transport.enviar('todos', { tipo: 'estado', vote: JSON.stringify({ id: Date.now(), open: true, voted: [] }) }).catch(errorEnvio);
+}
+function hostOnVoto(m) {
+  const v = voto(); if (!O.host || !v || !v.open) return;
+  const como = String(m.como || ''), a = String(m.a || '');
+  if (seatOwner(como) !== m.de) return;
+  if (!O.hostRoles[como] || O.elim.has(como) || !O.hostRoles[a] || O.elim.has(a) || a === como) return;
+  O.votes[como] = a;
+  const votantes = Object.keys(O.hostRoles).filter(id => { if (O.elim.has(id)) return false; const d = seatOwner(id), p = O.players.find(x => x.id === d); return d === O.uid || (p && p.conectado); });
+  if (votantes.length && votantes.every(id => O.votes[id])) { hostCerrarVoto(); return; }
+  Transport.enviar('todos', { tipo: 'estado', vote: JSON.stringify({ ...v, voted: Object.keys(O.votes) }) }).catch(errorEnvio);
+}
+function hostCerrarVoto() {
+  const v = voto(); if (!O.host || !v || !v.open) return;
+  const cuenta = {}; Object.values(O.votes).forEach(id => { cuenta[id] = (cuenta[id] || 0) + 1; });
+  const orden = Object.keys(cuenta).sort((x, y) => cuenta[y] - cuenta[x]);
+  const win = orden.length && (orden.length === 1 || cuenta[orden[0]] > cuenta[orden[1]]) ? orden[0] : null;
+  const res = orden.map(id => [nombreDe(id).slice(0, 24), cuenta[id]]);
+  Transport.enviar('todos', { tipo: 'estado', vote: JSON.stringify({ id: v.id, open: false, voted: Object.keys(O.votes), res, win, winName: win ? nombreDe(win).slice(0, 24) : '' }) }).catch(errorEnvio);
+}
+function hostCancelarVoto() { if (O.host) { O.votes = {}; Transport.enviar('todos', { tipo: 'estado', vote: null }).catch(errorEnvio); } }
 function renderEspera() {
   const w = esperando(), box = $('on-wait-box'); if (!box) return;
   box.style.display = w ? 'block' : 'none';
@@ -335,7 +455,7 @@ function renderEspera() {
 }
 function marcarListo() {
   if (!esperando() || !O.myRole) return;
-  O.readySent = O.pub.round; vibrate(20); renderEspera();
+  O.readySent = O.pub.round; vibrate(20); sfx('pass'); renderEspera();
   if (O.host) hostOnListo({ de: O.uid });
   else Transport.enviar('host', { tipo: 'listo' }).catch(e => { O.readySent = -1; renderEspera(); errorEnvio(e); });
 }
@@ -372,14 +492,15 @@ function renderCard() {
 }
 // Si este móvil lo comparten dos jugadores, la tarjeta alterna entre ambos (botón «Pasar»), como en el modo de un solo móvil.
 function vistaActual() {
-  const r = O.myRole, g = r && r.g ? parse(r.g, null) : null;
-  if (!r || !g || !g.card) return { compartido: false, idx: 0, nombre: miNombre(), otro: '', card: r ? r.card : '' };
-  const idx = O.seatView === 1 ? 1 : 0;
-  return { compartido: true, idx, nombre: idx ? g.n : miNombre(), otro: idx ? miNombre() : g.n, card: idx ? g.card : r.card };
+  const r = O.myRole, g = r && r.g ? [].concat(parse(r.g, [])).filter(x => x && x.card) : [];
+  if (!r || !g.length) return { compartido: false, idx: 0, seat: O.uid, rol: r ? r.role : null, nombre: miNombre(), otro: '', card: r ? r.card : '' };
+  const vistas = [{ n: miNombre(), card: r.card, seat: O.uid, rol: r.role }, ...g.map(x => ({ n: x.n, card: x.card, seat: 'g:' + O.uid + ':' + x.k, rol: x.r }))];
+  const idx = O.seatView % vistas.length, sig = vistas[(idx + 1) % vistas.length];
+  return { compartido: true, idx, seat: vistas[idx].seat, rol: vistas[idx].rol, nombre: vistas[idx].n, otro: sig.n, card: vistas[idx].card };
 }
 function pasarMovil() {
   if (!O.myRole || !vistaActual().compartido) return;
-  O.seatView = O.seatView === 1 ? 0 : 1; O.revealed = false; vibrate(20); renderCard(); renderGame();
+  O.seatView = O.seatView + 1; O.revealed = false; vibrate(20); sfx('pass'); renderCard(); renderGame();
 }
 function renderCardView(items, box) {
   (Array.isArray(items) ? items : []).forEach(it => {
@@ -424,8 +545,14 @@ function renderResult() {
   box.innerHTML = r === 'civiles'
     ? '<div class="victory-emoji">🏆</div><div class="victory-title civiles">Han ganado los Civiles</div><div class="victory-sub">Ha ganado la verdad.</div>'
     : '<div class="victory-emoji">🐄</div><div class="victory-title impostores">Ha ganado la mentira</div><div class="victory-sub">Vergüenza para tu vaca.</div>';
+  const sum = parse(O.pub.summary, null);
+  if (Array.isArray(sum) && sum.length) {
+    const t = el('table', 'results-table'); t.innerHTML = '<thead><tr><th>Jugador</th><th>Rol</th><th>Palabra</th></tr></thead>';
+    const tb = el('tbody'); sum.forEach(x => { if (!Array.isArray(x)) return; const imp = x[1] === 'I', tr = el('tr'); const a = el('td', '', String(x[0]) + (x[3] ? ' ✕' : '')), b = el('td', imp ? 'role-impostor' : 'role-civil', imp ? 'Impostor' : 'Civil'), c = el('td', '', String(x[2] || '—')); c.style.cssText = 'color:var(--text-faded);font-size:.8rem;'; tr.append(a, b, c); tb.appendChild(tr); });
+    t.appendChild(tb); box.appendChild(t);
+  }
   const k = O.pub.round + ':' + r;
-  if (O.resultShown !== k) { O.resultShown = k; vibrate([100, 50, 100, 50, 200]); }
+  if (O.resultShown !== k) { O.resultShown = k; vibrate([100, 50, 100, 50, 200]); sfx(r === 'civiles' ? 'win' : 'lose'); }
 }
 function renderGamePlayers() {
   const box = $('on-players'); if (!box) return;
@@ -460,7 +587,7 @@ function mostrarPopup(p) {
   ov.addEventListener('click', () => cerrarPopup(true));
   document.body.appendChild(ov);
   O.popupEl = ov; O.popupId = p.id;
-  vibrate(imp ? [40, 30, 80] : [60, 20, 60]);
+  vibrate(imp ? [40, 30, 80] : [60, 20, 60]); sfx('elim');
 }
 function cerrarPopup(marcar) {
   if (O.popupEl) { try { document.body.removeChild(O.popupEl); } catch (e) { /* ya cerrado */ } O.popupEl = null; }
@@ -479,7 +606,56 @@ function timerMs() {
   const ms = t.running ? t.remaining * 1000 - (Transport.ahora() - t.at) : t.remaining * 1000;
   return Math.max(0, ms);
 }
-function tickTimer() { if (O.active && O.cur === 'screen-online-game') renderTimer(); }
+function tickTimer() {
+  if (O.active && O.cur === 'screen-online-game') renderTimer();
+  if (O.active && ++O.mantN % 16 === 0) mantenimiento();
+}
+// Cada ~4 s: el anfitrión quita del lobby a quien lleva 3 min sin conexión; los jugadores ofrecen tomar la sala si el anfitrión desaparece.
+const FANTASMA_MS = 180000, ANFITRION_AUSENTE_MS = 25000;
+function mantenimiento() {
+  const ahora = Date.now(), lobby = (O.pub.phase || 'lobby') === 'lobby';
+  if (O.host) {
+    O.players.forEach(p => {
+      if (p.yo || p.esAnfitrion) return;
+      if (p.conectado) { delete O.offSince[p.id]; return; }
+      if (!O.offSince[p.id]) O.offSince[p.id] = ahora;
+      if (lobby && ahora - O.offSince[p.id] > FANTASMA_MS) {
+        delete O.offSince[p.id];
+        Transport.expulsar(p.id).then(() => { aviso('Se ha quitado a ' + p.nombre + ' por llevar 3 minutos sin conexión.', 6000); hostQuitarInvitado(p.id); }).catch(() => {});
+      }
+    });
+  }
+  const b = $('on-takeover-banner'); if (!b) return;
+  const hp = O.players.find(x => x.esAnfitrion);
+  if (!O.host && hp && !hp.conectado) { if (!O.hostOffSince) O.hostOffSince = ahora; }
+  else O.hostOffSince = 0;
+  b.style.display = (!O.host && O.hostOffSince && ahora - O.hostOffSince > ANFITRION_AUSENTE_MS && Transport.soportaTomarSala()) ? 'block' : 'none';
+}
+function tomarSala() {
+  Transport.tomarSala().then(() => { $('on-takeover-banner').style.display = 'none'; }).catch(e => { aviso((e && e.message) || 'No se pudo tomar la sala.'); });
+}
+function volverseAnfitrion() {
+  if (O.host) return;
+  O.host = true; O.hostOffSince = 0; O.lastSettings = ''; guardarSesion();
+  $('screen-setup').classList.add('online-host');
+  clearInterval(O.setInt); O.setInt = setInterval(() => publicarAjustes(false), 1000);
+  pedirWake();
+  O.readySet = new Set(parse(O.pub.ready, []));
+  const ph = O.pub.phase || 'lobby';
+  if (ph === 'alcalde') volverALobby(true);
+  else if (ph === 'playing' || ph === 'ended') recuperarRolesHost();
+  else syncHostPlayers();
+  publicarAjustes(true);
+  aviso('Ahora eres el anfitrión de la sala.', 7000);
+  renderTodo(); route();
+}
+function perderAnfitrion() {
+  if (!O.host) return;
+  O.host = false; clearInterval(O.setInt); O.setInt = null; liberarWake();
+  $('screen-setup').classList.remove('online-host');
+  aviso('Otro jugador ha pasado a ser el anfitrión de la sala.', 7000);
+  renderTodo(); route();
+}
 function renderTimer() {
   const area = $('on-timer-area'); if (!area) return;
   const ms = timerMs();
@@ -495,8 +671,8 @@ function renderTimer() {
   else lab.textContent = run ? 'Tiempo restante' : 'En pausa';
   if (run && secs !== O.vibSecs) {
     O.vibSecs = secs;
-    if (secs <= 10 && secs > 0) vibrate(40);
-    if (secs === 0) vibrate([200, 100, 200, 100, 400]);
+    if (secs <= 10 && secs > 0) { vibrate(40); sfx('tick'); }
+    if (secs === 0) { vibrate([200, 100, 200, 100, 400]); sfx('alarm'); }
   }
   $('on-btn-timer-start').textContent = run ? 'Pausar' : 'Iniciar';
 }
@@ -661,11 +837,13 @@ function rolDoc(i, ronda) {
 function ensamblarRoles(ronda) {
   const roles = {}, hist = {};
   for (let i = 1; i <= O.order.length; i++) { const r = rolDoc(i, ronda); hist[r.uid] = r; if (!r.uid.startsWith('g:')) roles[r.uid] = { ...r.doc }; }
+  const gs = {};
   Object.keys(hist).forEach(id => {
     if (!id.startsWith('g:')) return;
-    const r = hist[id], dueno = roles[seatOwner(id)]; if (!dueno) return;
-    dueno.g = JSON.stringify({ n: nombreDe(id).slice(0, 24), card: r.doc.card, r: r.doc.role, res: r.res.slice(0, 200) });
+    const r = hist[id], u = seatOwner(id); if (!roles[u]) return;
+    (gs[u] = gs[u] || []).push({ k: Number(id.split(':')[2]), n: nombreDe(id).slice(0, 24), card: r.doc.card, r: r.doc.role, res: r.res.slice(0, 200) });
   });
+  Object.keys(gs).forEach(u => { roles[u].g = JSON.stringify(gs[u]); });
   return { roles, hist };
 }
 // Reparte: escribe a cada jugador SOLO su tarjeta y publica el estado público de la ronda.
@@ -678,7 +856,7 @@ function dealRound() {
   O.elim = new Set(); O.timerSecs = null; O.vibSecs = -1; O.readySet = new Set(); O.readySent = -1;
   const estado = {
     phase: 'playing', round: ronda, settings: JSON.stringify(settingsObj()), starting: nombreDe(O.order[ini - 1]).slice(0, 24),
-    alcalde: null, alcaldeName: null, alcaldeWords: null, eliminated: '[]', popup: null, result: null, waiting: true, ready: '[]',
+    alcalde: null, alcaldeName: null, alcaldeWords: null, eliminated: '[]', popup: null, result: null, waiting: true, ready: '[]', vote: null, summary: null,
     timer: state.timerOn ? { running: false, remaining: state.timerSeconds, at: Transport.ahora() } : null
   };
   Transport.enviar('todos', { tipo: 'reparto', roles, estado }).catch(e => { O.hostRoles = {}; errorEnvio(e); });
@@ -724,9 +902,13 @@ function hostEliminar(uid) {
   O.elim.add(uid);
   const id = Math.max(Transport.ahora(), O.lastPopupId + 1); O.lastPopupId = id; O.popupSeen = Math.max(O.popupSeen, id);
   const upd = { tipo: 'estado', eliminated: JSON.stringify([...O.elim]), popup: { id, name: nombreDe(uid).slice(0, 24), role: info.role } };
+  upd.vote = null;
   const g = calcularGanador();
-  if (g) { upd.result = g; upd.phase = 'ended'; }
+  if (g) { upd.result = g; upd.phase = 'ended'; upd.summary = resumenJson(); }
   Transport.enviar('todos', upd).catch(e => { O.elim.delete(uid); errorEnvio(e); });
+}
+function resumenJson() {
+  return JSON.stringify(Object.keys(O.hostRoles).map(id => [nombreDe(id).slice(0, 24), O.hostRoles[id].role === 'impostor' ? 'I' : 'C', clean(O.hostRoles[id].res).slice(0, 40), O.elim.has(id) ? 1 : 0]));
 }
 function hostResultados() {
   const ov = el('div', 'results-overlay'); let filas = '';
@@ -743,7 +925,7 @@ function hostResultados() {
 function volverALobby(silencioso) {
   if (!O.host) return;
   O.hostRoles = {}; O.elim = new Set(); O.pending = false; O.timerSecs = null; O.readySet = new Set();
-  Transport.enviar('todos', { tipo: 'reparto', roles: null, estado: { phase: 'lobby', round: O.pub.round || 0, settings: JSON.stringify(settingsObj()), starting: null, alcalde: null, alcaldeName: null, alcaldeWords: null, timer: null, eliminated: null, popup: null, result: null, waiting: null, ready: null } })
+  Transport.enviar('todos', { tipo: 'reparto', roles: null, estado: { phase: 'lobby', round: O.pub.round || 0, settings: JSON.stringify(settingsObj()), starting: null, alcalde: null, alcaldeName: null, alcaldeWords: null, timer: null, eliminated: null, popup: null, result: null, waiting: null, ready: null, vote: null, summary: null } })
     .catch(errorEnvio);
   O.lastSettings = JSON.stringify(settingsObj());
   if (!silencioso) vibrate(30);
@@ -758,8 +940,7 @@ async function recuperarRolesHost() {
   O.hostRoles = {};
   Object.keys(roles).forEach(uid => {
     O.hostRoles[uid] = { role: roles[uid].role, res: roles[uid].res || '—', name: nombreDe(uid) };
-    const g = roles[uid].g ? parse(roles[uid].g, null) : null;
-    if (g && g.r) O.hostRoles['g:' + uid] = { role: g.r, res: g.res || '—', name: g.n || 'Jugador' };
+    (roles[uid].g ? [].concat(parse(roles[uid].g, [])) : []).forEach(g => { if (g && g.r) O.hostRoles['g:' + uid + ':' + g.k] = { role: g.r, res: g.res || '—', name: g.n || 'Jugador' }; });
   });
   renderTodo();
 }
@@ -806,9 +987,17 @@ function bind() {
   $('on-btn-leave-lobby').addEventListener('click', salirDeSala);
   $('on-host-leave').addEventListener('click', salirDeSala);
   $('on-btn-cancel-round').addEventListener('click', () => volverALobby(false));
-  $('on-reveal-card').addEventListener('click', () => { if (!O.myRole) return; O.revealed = !O.revealed; vibrate(O.revealed ? 25 : 15); renderCard(); });
+  $('on-reveal-card').addEventListener('click', () => { if (!O.myRole) return; O.revealed = !O.revealed; vibrate(O.revealed ? 25 : 15); sfx(O.revealed ? (vistaActual().rol === 'impostor' ? 'impostor' : 'civil') : 'pass'); renderCard(); });
   $('on-btn-results').addEventListener('click', () => { hostResultados(); vibrate(15); });
   $('on-btn-end').addEventListener('click', hostTerminar);
+  $('on-btn-vote-start').addEventListener('click', hostIniciarVoto);
+  $('on-btn-vote-close').addEventListener('click', hostCerrarVoto);
+  $('on-btn-vote-cancel').addEventListener('click', hostCancelarVoto);
+  $('on-btn-vote-elim').addEventListener('click', () => { const v = voto(); if (v && v.win) hostVerRol(v.win); });
+  $('on-btn-propose').addEventListener('click', enviarPropuesta);
+  $('on-btn-share').addEventListener('click', hostCompartir);
+  $('on-pass').addEventListener('input', fuerzaClave);
+  $('on-btn-takeover').addEventListener('click', tomarSala);
   $('on-btn-pass').addEventListener('click', pasarMovil);
   $('on-btn-ready').addEventListener('click', marcarListo);
   $('on-btn-start-all').addEventListener('click', () => hostComenzarTodos(false));
@@ -821,14 +1010,14 @@ function bind() {
   $('on-resume-discard').addEventListener('click', () => { borrarSesion(); $('on-resume-banner').style.display = 'none'; });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && O.active && O.host) pedirWake(); });
   Transport.alRecibir(onMsg); Transport.alCambiarJugadores(onJugadores); Transport.alConexion(onConexion);
-  const ses = leerSesion(); if (ses) intentarReanudar(ses);
+  const ses = leerSesion(); if (!aplicarEnlace() && ses) intentarReanudar(ses);
 }
 bind();
 
 return {
   get active() { return O.active; }, get isHost() { return O.host; },
   prepareStart, onAlcaldeChosen, sendWords, dealRound,
-  hostSeat() { return O.order.indexOf(O.uid) + 1; },
+  hostSeat() { return O.order.indexOf(O.uid) + 1; }, _mantenimiento: mantenimiento,
   _O: O
 };
 })();
