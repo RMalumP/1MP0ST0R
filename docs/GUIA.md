@@ -57,8 +57,8 @@ Qué protege cada bloque de reglas:
 2. Menú **Workers & Pages** → **Create** → **Create Worker** → nombre (p. ej. `impostor-turn`) → **Deploy**.
 3. **Edit code**: borra el contenido, pega `cloudflare/worker.js` entero → **Deploy**.
 4. Vuelve al Worker → **Settings** → **Variables and Secrets** → **Add**:
-   - Tipo **Secret**, nombre `METERED_API_KEY`, valor tu API key.
-   - Tipo **Text**, nombre `METERED_APP`, valor `NOMBRE` (solo la parte antes de `.metered.live`).
+   - **Opción A (con API key):** tipo **Secret** `METERED_API_KEY` con tu API key, y tipo **Text** `METERED_APP` con `NOMBRE` (solo la parte antes de `.metered.live`).
+   - **Opción B (si Metered solo te da Username y Password):** dos **Secret**: `METERED_USERNAME` con el usuario y `METERED_CREDENTIAL` con la contraseña. Es lo más simple.
    - (Opcional) Tipo **Text**, nombre `ALLOWED_ORIGIN`, valor `https://rmalump.github.io`. Si no existe, se usa ese mismo valor.
 5. **Deploy** de nuevo para aplicar las variables.
 6. Copia la URL del Worker (`https://impostor-turn.TU-USUARIO.workers.dev`).

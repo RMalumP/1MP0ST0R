@@ -9,8 +9,10 @@
  *   - Guarda la respuesta 5 minutos en la caché de Cloudflare para gastar menos peticiones a Metered.
  *
  * Variables de entorno (se crean en el panel del Worker: Settings → Variables and Secrets):
- *   METERED_API_KEY  (Secreto)   → tu API key de Metered.
- *   METERED_APP      (Variable)  → el nombre de tu app de Metered, es decir, la parte "NOMBRE" de NOMBRE.metered.live
+ * Hay DOS formas de configurarlo (basta una):
+ *   A) Con API key:  METERED_API_KEY (Secreto) + METERED_APP (Variable: la parte "NOMBRE" de NOMBRE.metered.live).
+ *   B) Con usuario y contraseña TURN fijos:  METERED_USERNAME (Secreto) + METERED_CREDENTIAL (Secreto).
+ *      Es lo más simple si el panel de Metered solo te enseña "Username" y "Password". Si hay API key se usa la A.
  *   ALLOWED_ORIGIN   (Variable, opcional) → origen permitido. Si no existe se usa https://rmalump.github.io
  *
  * Cómo comprobar que está desplegado: abre  https://TU-WORKER.workers.dev/estado  en el navegador.
@@ -20,6 +22,18 @@
 const ORIGEN_POR_DEFECTO = 'https://rmalump.github.io';
 const CACHE_SEGUNDOS = 300;
 const TIMEOUT_METERED_MS = 5000;
+const HOST_TURN_FIJO = 'global.relay.metered.ca';
+// Lista de servidores para el modo B (usuario y contraseña fijos).
+function iceFijo(usuario, clave) {
+  const h = HOST_TURN_FIJO;
+  return [
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    { urls: 'turn:' + h + ':80', username: usuario, credential: clave },
+    { urls: 'turn:' + h + ':80?transport=tcp', username: usuario, credential: clave },
+    { urls: 'turn:' + h + ':443', username: usuario, credential: clave },
+    { urls: 'turns:' + h + ':443?transport=tcp', username: usuario, credential: clave }
+  ];
+}
 
 function json(cuerpo, estado, cabeceras) {
   return new Response(JSON.stringify(cuerpo), {
@@ -39,7 +53,7 @@ export default {
 
     // Comprobación de despliegue: no revela ningún valor, solo si las variables existen.
     if (url.pathname === '/estado' && (request.method === 'GET' || request.method === 'HEAD')) {
-      return json({ ok: true, configurado: { METERED_API_KEY: !!env.METERED_API_KEY, METERED_APP: !!env.METERED_APP }, origenPermitido: permitido }, 200);
+      return json({ ok: true, configurado: { METERED_API_KEY: !!env.METERED_API_KEY, METERED_APP: !!env.METERED_APP, METERED_USERNAME: !!env.METERED_USERNAME, METERED_CREDENTIAL: !!env.METERED_CREDENTIAL }, origenPermitido: permitido }, 200);
     }
 
     // Todo lo demás: solo desde la web permitida.
@@ -49,8 +63,11 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (request.method !== 'GET') return json({ error: 'metodo-no-permitido' }, 405, cors);
 
-    if (!env.METERED_API_KEY || !env.METERED_APP || !/^[a-z0-9-]+$/i.test(env.METERED_APP)) {
-      return json({ error: 'no-configurado' }, 500, cors);
+    const modoApi = !!(env.METERED_API_KEY && env.METERED_APP && /^[a-z0-9-]+$/i.test(env.METERED_APP));
+    const modoFijo = !!(env.METERED_USERNAME && env.METERED_CREDENTIAL);
+    if (!modoApi && !modoFijo) return json({ error: 'no-configurado' }, 500, cors);
+    if (!modoApi) {
+      return new Response(JSON.stringify(iceFijo(env.METERED_USERNAME, env.METERED_CREDENTIAL)), { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cors } });
     }
 
     // Caché de Cloudflare (la clave no depende de quién pregunta ni de la API key).
