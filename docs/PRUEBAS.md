@@ -13,6 +13,7 @@ Usa al menos un móvil con **datos móviles** y otro con wifi. Online solo funci
 7. **Repartir roles**: cada móvil ve solo su tarjeta. Prueba los modos **Normal**, **Múltiple** (8+ jugadores), **Escondite** y **Alcalde** (y Alcalde + Escondite: el primer impostor escribe la clave y le llega a sus aliados).
 7b. **Espera inicial**: tras repartir, cada móvil ve su tarjeta y un botón «Comenzar»; el anfitrión tiene además «Comenzar para todos». Cuando todos los conectados pulsan (o el anfitrión fuerza), aparece la pantalla de partida y los roles siguen visibles tocando la tarjeta.
 7c. **Alcalde**: en modo Normal/Escondite, si el Alcalde escribe varias palabras se elige UNA al azar (con su pista); los grupos solo existen en Múltiple. Online: el anfitrión elige «Aleatorio» o «Siempre el anfitrión» (en ese caso nunca es impostor).
+7d. **Móvil compartido**: en el lobby, el anfitrión pulsa «👥 +1» junto a un jugador y escribe el nombre del segundo; ese móvil muestra la tarjeta oculta con el nombre y un botón «Pasar el móvil a …». ✏️ cambia nombres; «Quitar» elimina al invitado. Máx. 1 invitado por móvil.
 8. **Eliminar / resultados**: «Ver rol» y resultados solo en el anfitrión; el aviso de eliminado sale en todos; la victoria se calcula bien.
 9. **Cronómetro**: lo controla el anfitrión; todos lo ven.
 10. **Recargar y reconectar**: recarga B en plena partida → vuelve a la sala y recupera su rol. Recarga también el anfitrión.

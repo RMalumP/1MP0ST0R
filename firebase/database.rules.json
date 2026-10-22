@@ -105,6 +105,9 @@
               ".validate": false
             }
           },
+          "extra": {
+            ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 2000"
+          },
           "waiting": {
             ".validate": "newData.isBoolean()"
           },
@@ -156,6 +159,9 @@
             },
             "session": {
               ".validate": "newData.isString() && newData.val().length >= 8 && newData.val().length <= 40"
+            },
+            "g": {
+              ".validate": "newData.isString() && newData.val().length <= 3500"
             },
             "$other": {
               ".validate": false

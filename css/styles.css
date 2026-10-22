@@ -32,3 +32,5 @@
 .home-ico{font-size:2.4rem;line-height:1}
 .home-title{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:.12em}
 .home-sub{color:var(--text-faded);font-size:.8rem;letter-spacing:.1em}
+.on-kick + .on-kick{margin-left:6px}
+.on-player{flex-wrap:wrap}

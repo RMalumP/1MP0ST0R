@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -30,8 +30,22 @@ function aviso(msg, ms) {
   clearTimeout(aviso._t); aviso._t = setTimeout(() => { t.style.display = 'none'; }, ms || 4500);
 }
 function errorEnvio(e) { console.error(e); aviso((e && e.message) || 'No se pudo enviar. Comprueba tu conexión.'); }
+// Datos públicos extra (los escribe el anfitrión): g = invitados que comparten móvil [{o: uid del dueño, n: nombre}], a = nombres cambiados {uid: nombre}.
+function extra() { const e = parse(O.pub.extra, {}); return { g: Array.isArray(e.g) ? e.g : [], a: (e.a && typeof e.a === 'object') ? e.a : {} }; }
+// Asientos = jugadores reales + sus invitados (id 'g:<uid del dueño>'). Un móvil puede llevar dos asientos.
+function seats() {
+  const ex = extra(), out = [];
+  O.players.forEach(p => {
+    out.push({ ...p, nombre: ex.a[p.id] || p.nombre });
+    const g = ex.g.find(x => x.o === p.id);
+    if (g) out.push({ id: 'g:' + p.id, nombre: g.n, owner: p.id, conectado: p.conectado, esAnfitrion: false, yo: false, guest: true });
+  });
+  return out;
+}
+const seatOwner = id => String(id).startsWith('g:') ? String(id).slice(2) : id;
+function miNombre() { return extra().a[O.uid] || O.myName; }
 function nombreDe(uid) {
-  const p = O.players.find(x => x.id === uid); if (p) return p.nombre;
+  const p = seats().find(x => x.id === uid); if (p) return p.nombre;
   return (O.hostRoles[uid] && O.hostRoles[uid].name) || 'Jugador';
 }
 function ajustes() { return parse(O.pub.settings, {}); }
@@ -128,7 +142,30 @@ function onExpulsado() {
 function hostExpulsar(p) {
   if (!O.host || p.esAnfitrion || p.yo) return;
   if (!confirm('¿Expulsar a ' + p.nombre + ' de la sala?')) return;
-  Transport.expulsar(p.id).then(() => vibrate(20)).catch(errorEnvio);
+  Transport.expulsar(p.id).then(() => { vibrate(20); if (extra().g.some(x => x.o === p.id)) hostQuitarInvitado(p.id); }).catch(errorEnvio);
+}
+// Cambia datos públicos extra (invitados, nombres) y los publica; solo en el lobby.
+function hostSetExtra(fn) {
+  if (!O.host || (O.pub.phase || 'lobby') !== 'lobby') return;
+  const ex = extra(); fn(ex);
+  const txt = JSON.stringify(ex);
+  if (txt.length > 1800) { aviso('Demasiados cambios de nombre o invitados.'); return; }
+  Transport.enviar('todos', { tipo: 'estado', extra: txt }).catch(errorEnvio);
+}
+function hostAnadirInvitado(ownerId) {
+  if (seats().length >= 20) { aviso('La sala está llena (máximo 20 jugadores).'); return; }
+  const base = 'Jugador ' + (seats().length + 1);
+  const n = (prompt('Nombre del segundo jugador que usará este móvil:', base) || '').trim().slice(0, 24);
+  if (!n) return;
+  if (seats().some(s => s.nombre.toLowerCase() === n.toLowerCase())) { aviso('Ya hay un jugador con ese nombre.'); return; }
+  hostSetExtra(ex => { ex.g = ex.g.filter(x => x.o !== ownerId); ex.g.push({ o: ownerId, n }); });
+}
+function hostQuitarInvitado(ownerId) { hostSetExtra(ex => { ex.g = ex.g.filter(x => x.o !== ownerId); }); }
+function hostRenombrar(p) {
+  const n = (prompt('Nuevo nombre:', p.nombre) || '').trim().slice(0, 24);
+  if (!n || n === p.nombre) return;
+  if (seats().some(s => s.id !== p.id && s.nombre.toLowerCase() === n.toLowerCase())) { aviso('Ya hay un jugador con ese nombre.'); return; }
+  hostSetExtra(ex => { if (p.guest) { const g = ex.g.find(x => x.o === p.owner); if (g) g.n = n; } else ex.a[p.id] = n; });
 }
 
 // ---------- recibir mensajes ----------
@@ -159,6 +196,7 @@ function onConexion(c) {
 }
 function onEstado(st) {
   O.pub = st;
+  if (O.host && (st.phase || 'lobby') === 'lobby') syncHostPlayers();
   if (st.phase !== 'alcalde') O.sentWords = false;
   O.elim = new Set(parse(st.eliminated, []));
   const enJuego = st.phase === 'playing' || st.phase === 'ended';
@@ -181,8 +219,8 @@ function onEstado(st) {
 function onRol(m) {
   if (m.vacio) { O.myRole = null; O.revealed = false; renderCard(); return; }
   const antes = O.myRole; O.myRole = m;
-  if (!antes || antes.round !== m.round) O.revealed = false;
-  renderCard();
+  if (!antes || antes.round !== m.round) { O.revealed = false; O.seatView = 0; }
+  renderCard(); renderGame();
   if (O.pub.phase === 'playing' || O.pub.phase === 'ended') route();
 }
 
@@ -201,20 +239,25 @@ function route() {
 function renderTodo() { renderHostPanel(); renderLobby(); renderGame(); }
 
 // ---------- jugadores: chips, lobby y panel del anfitrión ----------
-function chip(p, expulsable) {
+function chip(p, ctrl) {
   const d = el('div', 'on-player');
   d.appendChild(el('span', 'on-dot ' + (p.conectado ? 'on' : 'off')));
-  d.appendChild(el('span', 'on-pname', p.nombre + (p.esAnfitrion ? ' 👑' : '') + (p.yo ? ' (tú)' : '')));
+  d.appendChild(el('span', 'on-pname', p.nombre + (p.guest ? ' 👥' : '') + (p.esAnfitrion ? ' 👑' : '') + (p.yo ? ' (tú)' : '')));
   if (!p.conectado) d.appendChild(el('span', 'on-off', 'sin conexión'));
-  if (expulsable && !p.esAnfitrion && !p.yo) {
-    const b = el('button', 'on-kick', 'Expulsar'); b.type = 'button';
-    b.addEventListener('click', e => { e.stopPropagation(); hostExpulsar(p); });
-    d.appendChild(b);
+  if (ctrl) {
+    const btn = (txt, title, fn, extraCls) => { const b = el('button', 'on-kick' + (extraCls || ''), txt); b.type = 'button'; b.title = title; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); d.appendChild(b); };
+    btn('✏️', 'Cambiar nombre', () => hostRenombrar(p));
+    if (p.guest) btn('Quitar', 'Quitar al jugador invitado', () => hostQuitarInvitado(p.owner));
+    else {
+      const tiene = extra().g.some(x => x.o === p.id);
+      if (!tiene) btn('👥 +1', 'Este móvil lo usarán dos jugadores', () => hostAnadirInvitado(p.id));
+      if (!p.esAnfitrion && !p.yo) btn('Expulsar', 'Expulsar de la sala', () => hostExpulsar(p));
+    }
   }
   return d;
 }
 function syncHostPlayers() {
-  playerNames = O.players.map(p => p.nombre);
+  playerNames = seats().map(p => p.nombre);
   state.numPlayers = playerNames.length;
   updateImpostorCap(); updateModeUI();
 }
@@ -231,8 +274,8 @@ function renderHostPanel() {
   } else { w.style.display = 'none'; w.textContent = ''; }
   const list = $('on-host-players'); list.innerHTML = '';
   const lobby = (O.pub.phase || 'lobby') === 'lobby';
-  O.players.forEach(pl => list.appendChild(chip(pl, lobby)));
-  const n = O.players.length, off = O.players.filter(x => !x.conectado).length;
+  seats().forEach(pl => list.appendChild(chip(pl, lobby)));
+  const n = seats().length, off = O.players.filter(x => !x.conectado).length;
   let msg = n < 3 ? 'Faltan jugadores: se necesitan al menos 3 (ahora ' + n + '). Que se unan con el nombre de la sala y la contraseña.' : n + ' jugadores en la sala.';
   if (n >= 3 && off > 0) msg += ' ' + off + ' sin conexión.';
   $('on-host-msg').textContent = msg;
@@ -248,7 +291,7 @@ function renderLobby() {
   root.textContent = O.roomName;
   $('on-lobby-transport').textContent = Transport.etiqueta();
   const list = $('on-lobby-players'); list.innerHTML = '';
-  O.players.forEach(pl => list.appendChild(chip(pl)));
+  seats().forEach(pl => list.appendChild(chip(pl)));
   const ph = O.pub.phase || 'lobby';
   $('on-lobby-msg').textContent = ph === 'alcalde'
     ? '👑 ' + (O.pub.alcaldeName || 'El Alcalde') + ' está eligiendo las palabras…'
@@ -265,7 +308,7 @@ function renderGame() {
   renderEspera();
   const b = $('on-mode-badge'); b.innerHTML = '';
   if (s.mode) b.appendChild(el('span', 'mode-badge ' + (s.mode === 'escondite' ? 'escondite' : s.mode), (MODOS[s.mode] || s.mode)));
-  $('on-player-name').textContent = O.myName;
+  $('on-player-name').textContent = vistaActual().nombre;
   $('on-round-label').textContent = 'Ronda ' + (O.pub.round || 1) + ' · Sala ' + O.roomName;
   renderCard(); renderResult(); renderGamePlayers(); renderTimerControls();
   const fin = $('on-btn-end'); fin.style.display = O.host ? 'block' : 'none';
@@ -316,13 +359,27 @@ function hostComenzarTodos(auto) {
 function renderCard() {
   const card = $('on-reveal-card'), shown = $('on-reveal-shown'); if (!card) return;
   const ver = !!(O.revealed && O.myRole);
+  const vista = vistaActual();
   card.classList.toggle('revealed', ver);
-  $('on-tap-text').textContent = O.myRole ? 'Toca para ver tu rol' : 'Esperando tu rol…';
-  const sig = ver ? O.myRole.round + '|' + O.myRole.card : '';
+  $('on-tap-text').textContent = O.myRole ? (vista.compartido ? 'Toca para ver el rol de ' + vista.nombre : 'Toca para ver tu rol') : 'Esperando tu rol…';
+  const pass = $('on-btn-pass');
+  if (pass) { pass.style.display = vista.compartido ? 'block' : 'none'; pass.textContent = 'Pasar el móvil a ' + vista.otro + ' ➜'; }
+  const sig = ver ? O.myRole.round + '|' + vista.idx + '|' + vista.card : '';
   if (sig === O.cardSig && sig !== '') return; // sin cambios: no se toca (así no se borra la clave que se está escribiendo)
   O.cardSig = sig;
   shown.innerHTML = '';
-  if (ver) renderCardView(parse(O.myRole.card, []), shown);
+  if (ver) renderCardView(parse(vista.card, []), shown);
+}
+// Si este móvil lo comparten dos jugadores, la tarjeta alterna entre ambos (botón «Pasar»), como en el modo de un solo móvil.
+function vistaActual() {
+  const r = O.myRole, g = r && r.g ? parse(r.g, null) : null;
+  if (!r || !g || !g.card) return { compartido: false, idx: 0, nombre: miNombre(), otro: '', card: r ? r.card : '' };
+  const idx = O.seatView === 1 ? 1 : 0;
+  return { compartido: true, idx, nombre: idx ? g.n : miNombre(), otro: idx ? miNombre() : g.n, card: idx ? g.card : r.card };
+}
+function pasarMovil() {
+  if (!O.myRole || !vistaActual().compartido) return;
+  O.seatView = O.seatView === 1 ? 0 : 1; O.revealed = false; vibrate(20); renderCard(); renderGame();
 }
 function renderCardView(items, box) {
   (Array.isArray(items) ? items : []).forEach(it => {
@@ -375,8 +432,8 @@ function renderGamePlayers() {
   box.innerHTML = '';
   // El anfitrión ve también a quien se fue a media ronda (cuenta para la victoria); el resto ve la sala actual.
   const filas = O.host && Object.keys(O.hostRoles).length
-    ? Object.keys(O.hostRoles).map(id => { const p = O.players.find(x => x.id === id); return { id, nombre: nombreDe(id), conectado: p ? p.conectado : false, fuera: !p }; })
-    : O.players.map(p => ({ id: p.id, nombre: p.nombre, conectado: p.conectado, fuera: false }));
+    ? Object.keys(O.hostRoles).map(id => { const p = seats().find(x => x.id === id); return { id, nombre: nombreDe(id), conectado: p ? p.conectado : false, fuera: !p }; })
+    : seats().map(p => ({ id: p.id, nombre: p.nombre, conectado: p.conectado, fuera: false }));
   filas.forEach(f => {
     const elim = O.elim.has(f.id);
     const row = el('div', 'game-player-row' + (elim ? ' eliminated' : ''));
@@ -480,9 +537,10 @@ function publicarAjustes(forzar) {
 function prepareStart(errEl) {
   if (!O.active || !O.host) return false;
   if ((O.pub.phase || 'lobby') !== 'lobby') { errEl.textContent = 'Ya hay una ronda en marcha.'; return false; }
-  if (O.players.length < 3) { errEl.textContent = 'Se necesitan al menos 3 jugadores en la sala (ahora ' + O.players.length + ').'; return false; }
-  O.order = O.players.map(p => p.id);
-  playerNames = O.players.map(p => p.nombre);
+  const as = seats();
+  if (as.length < 3) { errEl.textContent = 'Se necesitan al menos 3 jugadores en la sala (ahora ' + as.length + ').'; return false; }
+  O.order = as.map(p => p.id);
+  playerNames = as.map(p => p.nombre);
   state.numPlayers = playerNames.length;
   return true;
 }
@@ -491,7 +549,7 @@ function onAlcaldeChosen() {
   const alc = O.order[state.alcaldePlayer - 1];
   O.pending = true;
   const fijas = state.gameMode === 'multiple' ? state.multiWordCount : 0;
-  Transport.enviar('todos', { tipo: 'estado', phase: 'alcalde', alcalde: alc, alcaldeName: nombreDe(alc).slice(0, 24), alcaldeWords: fijas, settings: JSON.stringify(settingsObj()), result: null, popup: null })
+  Transport.enviar('todos', { tipo: 'estado', phase: 'alcalde', alcalde: seatOwner(alc), alcaldeName: nombreDe(alc).slice(0, 24), alcaldeWords: fijas, settings: JSON.stringify(settingsObj()), result: null, popup: null })
     .catch(e => { O.pending = false; errorEnvio(e); });
 }
 function mostrarAlcalde() {
@@ -499,7 +557,7 @@ function mostrarAlcalde() {
   state.hintOn = !!s.hint;
   const n = O.pub.alcaldeWords || 1;
   state.alcaldeNumWords = n;
-  $('alcalde-who-name').textContent = O.myName;
+  $('alcalde-who-name').textContent = O.pub.alcaldeName || miNombre();
   $('inp-alcalde-numwords').value = n;
   const w = $('inp-alcalde-numwords').closest('.alcalde-num-words'); if (w) w.style.display = O.pub.alcaldeWords ? 'none' : 'block';
   buildAlcaldeWordsList();
@@ -514,7 +572,7 @@ function sendWords(words, hints) {
 }
 function hostOnPalabras(m) {
   if (!O.host || !O.pending) return;
-  if (m.de !== O.order[state.alcaldePlayer - 1]) return;
+  if (m.de !== seatOwner(O.order[state.alcaldePlayer - 1])) return;
   const words = (Array.isArray(m.palabras) ? m.palabras : []).map(w => String(w).trim().slice(0, 60)).filter(Boolean).slice(0, 20);
   if (words.length === 0) return;
   if (state.gameMode === 'multiple' && words.length !== state.multiWordCount) return;
@@ -599,14 +657,23 @@ function rolDoc(i, ronda) {
   const uid = O.order[i - 1], isImp = state.impostorSet.has(i), res = resText(i);
   return { uid, res, doc: { round: ronda, role: isImp ? 'impostor' : 'civil', card: JSON.stringify(buildCardView(i)), res: res.slice(0, 280) } };
 }
+// Un documento por móvil: el del jugador y, si comparte móvil, el de su invitado dentro de "g".
+function ensamblarRoles(ronda) {
+  const roles = {}, hist = {};
+  for (let i = 1; i <= O.order.length; i++) { const r = rolDoc(i, ronda); hist[r.uid] = r; if (!r.uid.startsWith('g:')) roles[r.uid] = { ...r.doc }; }
+  Object.keys(hist).forEach(id => {
+    if (!id.startsWith('g:')) return;
+    const r = hist[id], dueno = roles[seatOwner(id)]; if (!dueno) return;
+    dueno.g = JSON.stringify({ n: nombreDe(id).slice(0, 24), card: r.doc.card, r: r.doc.role, res: r.res.slice(0, 200) });
+  });
+  return { roles, hist };
+}
 // Reparte: escribe a cada jugador SOLO su tarjeta y publica el estado público de la ronda.
 function dealRound() {
   const n = O.order.length, ronda = (O.pub.round || 0) + 1;
-  const roles = {}; O.hostRoles = {};
-  for (let i = 1; i <= n; i++) {
-    const r = rolDoc(i, ronda); roles[r.uid] = r.doc;
-    O.hostRoles[r.uid] = { role: r.doc.role, res: r.res, name: nombreDe(r.uid) };
-  }
+  O.hostRoles = {};
+  const { roles, hist } = ensamblarRoles(ronda);
+  Object.keys(hist).forEach(id => { O.hostRoles[id] = { role: hist[id].doc.role, res: hist[id].res, name: nombreDe(id) }; });
   const ini = (state.customOn && state.alcaldePlayer) ? state.alcaldePlayer : Math.floor(Math.random() * n) + 1;
   O.elim = new Set(); O.timerSecs = null; O.vibSecs = -1; O.readySet = new Set(); O.readySent = -1;
   const estado = {
@@ -619,16 +686,17 @@ function dealRound() {
 // Escondite con Alcalde: el primer impostor envía la clave y se reenvía a sus aliados.
 function hostOnClave(m) {
   if (!O.host || state.gameMode !== 'escondite' || !state.customOn || state.esconditeKeyWritten) return;
-  if (m.de !== O.order[state.firstImpostor - 1]) return;
+  if (m.de !== seatOwner(O.order[state.firstImpostor - 1])) return;
   const k = String(m.clave || '').trim().slice(0, 60); if (!k) return;
   state.esconditeKey = k; state.esconditeKeyWritten = true;
-  const ronda = O.pub.round || 1;
+  const ronda = O.pub.round || 1, { roles, hist } = ensamblarRoles(ronda), duenos = new Set();
   for (let i = 1; i <= O.order.length; i++) {
     if (!state.impostorSet.has(i)) continue;
-    const r = rolDoc(i, ronda);
-    if (O.hostRoles[r.uid]) O.hostRoles[r.uid].res = r.res;
-    Transport.enviar(r.uid, { tipo: 'rol', ...r.doc }).catch(errorEnvio);
+    const id = O.order[i - 1];
+    if (O.hostRoles[id]) O.hostRoles[id].res = hist[id].res;
+    duenos.add(seatOwner(id));
   }
+  duenos.forEach(u => { if (roles[u]) Transport.enviar(u, { tipo: 'rol', ...roles[u] }).catch(errorEnvio); });
 }
 function calcularGanador() {
   const ids = Object.keys(O.hostRoles);
@@ -688,7 +756,11 @@ function hostTerminar() {
 async function recuperarRolesHost() {
   const roles = await Transport.leerRoles();
   O.hostRoles = {};
-  Object.keys(roles).forEach(uid => { O.hostRoles[uid] = { role: roles[uid].role, res: roles[uid].res || '—', name: nombreDe(uid) }; });
+  Object.keys(roles).forEach(uid => {
+    O.hostRoles[uid] = { role: roles[uid].role, res: roles[uid].res || '—', name: nombreDe(uid) };
+    const g = roles[uid].g ? parse(roles[uid].g, null) : null;
+    if (g && g.r) O.hostRoles['g:' + uid] = { role: g.r, res: g.res || '—', name: g.n || 'Jugador' };
+  });
   renderTodo();
 }
 function hostQuitarAviso() { if (O.host) Transport.enviar('todos', { tipo: 'estado', popup: null }).catch(errorEnvio); }
@@ -737,6 +809,7 @@ function bind() {
   $('on-reveal-card').addEventListener('click', () => { if (!O.myRole) return; O.revealed = !O.revealed; vibrate(O.revealed ? 25 : 15); renderCard(); });
   $('on-btn-results').addEventListener('click', () => { hostResultados(); vibrate(15); });
   $('on-btn-end').addEventListener('click', hostTerminar);
+  $('on-btn-pass').addEventListener('click', pasarMovil);
   $('on-btn-ready').addEventListener('click', marcarListo);
   $('on-btn-start-all').addEventListener('click', () => hostComenzarTodos(false));
   $('on-btn-cancel-wait').addEventListener('click', () => { if (confirm('¿Cancelar la ronda y volver al lobby?')) volverALobby(false); });
