@@ -30,6 +30,7 @@ alcaldeWord: null, // palabra elegida por el alcalde
 alcaldePlayer: null, // jugador elegido como alcalde (1-based)
 alcaldeNumWords: 1, // nº de palabras definidas por el alcalde
 alcaldeHints: [], // pistas por palabra (alcalde)
+  alcaldeMode: 'random', // online: 'random' = alcalde al azar, 'host' = siempre el anfitrión
 esconditeKeyWritten: false,// el primer impostor ya escribió su clave
 firstImpostor: null, // primer impostor en orden de turno
 allSeen: false, // todos los jugadores han visto su carta
@@ -195,6 +196,22 @@ function pickImpostors(numPlayers, numImpostors) {
 
   return chosen;
 }
+// Alcalde con varias palabras fuera del modo Múltiple: se elige UNA al azar (con su pista); no se hacen grupos.
+function alcaldeElegirUna(words, hints) {
+const i = Math.floor(Math.random() * words.length);
+return { words: [words[i]], hints: (hints && hints[i] !== undefined) ? [hints[i]] : [] };
+}
+// Si el jugador `seat` (1-based) salió impostor, lo cambia por un civil al azar y corrige el historial.
+function sacarDeImpostores(set, seat, numPlayers) {
+if (!set.has(seat)) return set;
+const civiles = []; for (let i = 1; i <= numPlayers; i++) if (!set.has(i) && i !== seat) civiles.push(i);
+if (!civiles.length) return set;
+const nuevo = fisherYates(civiles)[0], h = _getHistory(numPlayers);
+set.delete(seat); set.add(nuevo);
+h.counts[seat] = Math.max(0, (h.counts[seat] || 1) - 1); h.counts[nuevo] = (h.counts[nuevo] || 0) + 1;
+h.lastImpostors = new Set(set);
+return set;
+}
 function showScreen(id) {
 document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
 $(id).classList.add('active');
@@ -343,6 +360,12 @@ if (!canEscondite) {
 modeEscondite.classList.add('unavailable');
 } else {
 modeEscondite.classList.remove('unavailable');
+}
+const filaAlc = $('alcalde-mode-row');
+if (filaAlc) {
+filaAlc.style.display = (state.customOn && typeof Online !== 'undefined' && Online.active && Online.isHost) ? 'block' : 'none';
+$('alc-rand').classList.toggle('selected', state.alcaldeMode !== 'host');
+$('alc-host').classList.toggle('selected', state.alcaldeMode === 'host');
 }
 document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
 $('mode-' + state.gameMode).classList.add('selected');
@@ -530,10 +553,12 @@ err.textContent = 'El modo Escondite requiere 2 o más impostores.';
 return;
 }
 state.impostorSet = pickImpostors(state.numPlayers, state.numImpostors);
+const alcaldeAnfitrion = state.customOn && state.alcaldeMode === 'host' && typeof Online !== 'undefined' && Online.active && Online.isHost;
+if (alcaldeAnfitrion) sacarDeImpostores(state.impostorSet, Online.hostSeat(), state.numPlayers);
 if (state.customOn) {
 const nonImps = [];
 for (let i = 1; i <= state.numPlayers; i++) { if (!state.impostorSet.has(i)) nonImps.push(i); }
-state.alcaldePlayer = fisherYates(nonImps)[0];
+state.alcaldePlayer = alcaldeAnfitrion ? Online.hostSeat() : fisherYates(nonImps)[0];
 state.word = null; state.category = 'Personalizada';
 state.words = []; state.playerWordIdx = {}; state.esconditeKey = null;
 state.alcaldeWord = null;
@@ -659,7 +684,7 @@ $('inp-alcalde-numwords').addEventListener('change', e => { setAlcaldeNumWords(p
 $('btn-alcalde-confirm').addEventListener('click', () => {
 const list = $('alcalde-words-list');
 const wordInps = list.querySelectorAll('[data-word-idx]');
-const words = [];
+let words = [];
 let valid = true;
 wordInps.forEach(inp => {
 const v = inp.value.trim();
@@ -670,8 +695,9 @@ if (!valid) return;
 const hintInps = list.querySelectorAll('[data-hint-idx]');
 const hints = [];
 hintInps.forEach(inp => hints.push(inp.value.trim()));
+if (typeof Online !== 'undefined' && Online.active) { state.alcaldeHints = hints; Online.sendWords(words, hints); return; }
+if (state.gameMode !== 'multiple' && words.length > 1) { const r = alcaldeElegirUna(words, hints); words = r.words; hints.length = 0; r.hints.forEach(h => hints.push(h)); }
 state.alcaldeHints = hints;
-if (typeof Online !== 'undefined' && Online.active) { Online.sendWords(words, hints); return; }
 if (words.length === 1) {
 state.word = words[0];
 state.words = [];
@@ -1607,3 +1633,6 @@ if (loadSeedWords()) { buildArchivoScreen(new Set()); showLoadFeedback('✓ List
 $('btn-home-local').addEventListener('click', () => { showScreen('screen-setup'); vibrate(15); });
 $('btn-setup-home').addEventListener('click', () => { showScreen('screen-home'); });
 showScreen('screen-home');
+
+$('alc-rand').addEventListener('click', () => { state.alcaldeMode = 'random'; updateModeUI(); vibrate(10); });
+$('alc-host').addEventListener('click', () => { state.alcaldeMode = 'host'; updateModeUI(); vibrate(10); });

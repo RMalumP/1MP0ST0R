@@ -36,7 +36,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : 'rand' };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -239,7 +239,7 @@ function renderHostPanel() {
 }
 function settingsLines() {
   const s = ajustes(); if (!s.mode) return ['Esperando los ajustes del anfitrión…'];
-  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí' : 'no')];
+  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí' : 'no')];
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
   return l;
 }
@@ -518,7 +518,9 @@ function hostOnPalabras(m) {
   const words = (Array.isArray(m.palabras) ? m.palabras : []).map(w => String(w).trim().slice(0, 60)).filter(Boolean).slice(0, 20);
   if (words.length === 0) return;
   if (state.gameMode === 'multiple' && words.length !== state.multiWordCount) return;
-  state.alcaldeHints = (Array.isArray(m.pistas) ? m.pistas : []).map(h => String(h).trim().slice(0, 60));
+  let pistas = (Array.isArray(m.pistas) ? m.pistas : []).map(h => String(h).trim().slice(0, 60));
+  if (state.gameMode !== 'multiple' && words.length > 1) { const r = alcaldeElegirUna(words, pistas); words.length = 0; words.push(...r.words); pistas = r.hints; }
+  state.alcaldeHints = pistas;
   if (words.length === 1) { state.word = words[0]; state.words = []; state.playerWordIdx = {}; }
   else {
     state.word = null; state.words = words; state.multiWordCount = words.length;
@@ -753,6 +755,7 @@ bind();
 return {
   get active() { return O.active; }, get isHost() { return O.host; },
   prepareStart, onAlcaldeChosen, sendWords, dealRound,
+  hostSeat() { return O.order.indexOf(O.uid) + 1; },
   _O: O
 };
 })();
