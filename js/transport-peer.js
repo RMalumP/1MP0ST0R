@@ -4,7 +4,7 @@
 // Es un módulo ES que carga js/transport.js bajo demanda; PeerJS se descarga por <script> (versión fijada) solo cuando hace falta.
 
 // ===== CONFIGURACIÓN: pega aquí la URL de tu Worker de Cloudflare (el que reparte las credenciales TURN) =====
-const TURN_PROXY_URL = "PEGA_AQUI_LA_URL_DEL_WORKER";
+const TURN_PROXY_URL = "https://impostor-turn.raul110082.workers.dev";
 // ==========================================================================================================
 
 const PEERJS_VERSION = '1.5.4';
