@@ -4,11 +4,11 @@
 
 // ===== CONFIGURACIÓN: pega aquí los valores de tu proyecto de Firebase =====
 const firebaseConfig = {
-  apiKey: "PEGA_AQUI",
-  authDomain: "PEGA_AQUI",
-  databaseURL: "PEGA_AQUI",
-  projectId: "PEGA_AQUI",
-  appId: "PEGA_AQUI"
+  apiKey: "AIzaSyDwEogM2aCgegFhyRa24gK7E45-I1dHmzE",
+  authDomain: "impostor-11e9f.firebaseapp.com",
+  databaseURL: "https://impostor-11e9f-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "impostor-11e9f",
+  appId: "1:728640662006:web:40c0c6037a713b6a593fd7"
 };
 // ===========================================================================
 
