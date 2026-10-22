@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=3">
+<link rel="stylesheet" href="css/styles.css?v=4">
 </head>
 <body>
 <div class="app">
@@ -17,12 +17,22 @@
     <div class="subtitle">Descubre · Engaña · Acusa</div>
   </header>
 
-  <!-- ===== SCREEN 1: SETUP ===== -->
-  <div class="screen active" id="screen-setup">
-    <div id="on-resume-banner" class="on-banner" style="display:none;">
-      <div id="on-resume-text"></div>
-      <div class="on-banner-btns"><button class="btn-secondary" id="on-resume-retry">Volver a la sala</button><button class="btn-secondary btn-ghost" id="on-resume-discard">Descartar</button></div>
+  <div id="on-resume-banner" class="on-banner" style="display:none;">
+    <div id="on-resume-text"></div>
+    <div class="on-banner-btns"><button class="btn-secondary" id="on-resume-retry">Volver a la sala</button><button class="btn-secondary btn-ghost" id="on-resume-discard">Descartar</button></div>
+  </div>
+
+  <!-- ===== SCREEN 0: INICIO ===== -->
+  <div class="screen active" id="screen-home">
+    <div class="home-wrap">
+      <button class="home-btn" id="btn-home-local"><span class="home-ico">📱</span><span class="home-title">Un solo móvil</span><span class="home-sub">Se pasa de mano en mano</span></button>
+      <button class="home-btn" id="btn-home-online"><span class="home-ico">🌐</span><span class="home-title">Online</span><span class="home-sub">Cada jugador desde su móvil</span></button>
     </div>
+  </div>
+
+  <!-- ===== SCREEN 1: SETUP ===== -->
+  <div class="screen" id="screen-setup">
+    <button class="btn-back local-only" id="btn-setup-home" style="margin-bottom:12px;">‹ Inicio</button>
     <div id="online-host-panel" class="section on-host-panel" style="display:none;">
       <div class="section-title">🌐 Sala online: <span id="on-host-room"></span> <span class="on-chip" id="on-host-transport"></span></div>
       <div class="on-warn" id="on-host-warn" style="display:none;"></div>
@@ -5020,8 +5030,8 @@
   ]
 }
 </script>
-<script src="js/script.js?v=3"></script>
-<script src="js/transport.js?v=3"></script>
-<script src="js/online.js?v=3"></script>
+<script src="js/script.js?v=4"></script>
+<script src="js/transport.js?v=4"></script>
+<script src="js/online.js?v=4"></script>
 </body>
 </html>

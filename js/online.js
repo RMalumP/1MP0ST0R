@@ -103,7 +103,7 @@ function limpiar() {
   if (O.savedNames) { playerNames = O.savedNames.slice(); setPlayers(playerNames.length); O.savedNames = null; }
   updateModeUI();
   const b = $('on-resume-banner'); if (b) b.style.display = 'none';
-  go('screen-setup');
+  go('screen-home');
 }
 async function salirDeSala() {
   if (!O.active) return;
@@ -679,7 +679,8 @@ function mostrarBannerReanudar(ses, msg) {
 // ---------- enganche de eventos ----------
 function bind() {
   $('btn-open-online').addEventListener('click', abrirMenu);
-  $('on-btn-menu-back').addEventListener('click', () => go('screen-setup'));
+  $('on-btn-menu-back').addEventListener('click', () => go('screen-home'));
+  $('btn-home-online').addEventListener('click', abrirMenu);
   $('on-btn-create').addEventListener('click', () => conectar('crear'));
   $('on-btn-join').addEventListener('click', () => conectar('unirse'));
   $('on-btn-leave').addEventListener('click', salirDeSala);

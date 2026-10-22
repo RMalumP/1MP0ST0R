@@ -1602,3 +1602,8 @@ $('btn-restore-seed').addEventListener('click', () => {
 if (!confirm('¿Restaurar la lista de serie? Se perderán los cambios hechos o cargados en esta sesión.')) return;
 if (loadSeedWords()) { buildArchivoScreen(new Set()); showLoadFeedback('✓ Lista de serie restaurada', 'ok'); vibrate(30); }
 });
+
+// ===== Pantalla de inicio: un solo móvil u online =====
+$('btn-home-local').addEventListener('click', () => { showScreen('screen-setup'); vibrate(15); });
+$('btn-setup-home').addEventListener('click', () => { showScreen('screen-home'); });
+showScreen('screen-home');
