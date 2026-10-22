@@ -1,0 +1,709 @@
+// js/online.js — Modo online: sala, lobby, reparto de roles, eliminaciones, cronómetro y reconexión.
+// Solo habla con la capa Transport (js/transport.js). Usa funciones y el objeto `state` de js/script.js.
+// Reglas de privacidad: cada móvil recibe únicamente SU tarjeta ya resuelta; el anfitrión es el único que conoce todos los roles.
+const Online = (function () {
+'use strict';
+const SES_KEY = 'impostor.online.sesion', NAME_KEY = 'impostor.online.nombre', POPUP_KEY = 'impostor.online.popup';
+const SES_MAX_MS = 12 * 3600 * 1000;
+const MODOS = { normal: '🎭 Normal', multiple: '🔀 Múltiple', escondite: '🕵️ Escondite' };
+const O = {
+  active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
+  hostRoles: {}, order: [], elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
+  popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+};
+
+// ---------- utilidades ----------
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* nada */ } }
+function ssGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* nada */ } }
+function parse(s, fb) { try { const v = JSON.parse(s); return v === undefined ? fb : v; } catch (e) { return fb; } }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function go(id) { O.cur = id; showScreen(id); }
+function curScreen() { const a = document.querySelector('.screen.active'); return a && a.id ? a.id : O.cur; }
+function clean(w) { return w ? String(w).replace(/\s*\(.*\)$/, '').trim() : '—'; }
+function aviso(msg, ms) {
+  const t = $('on-toast'); if (!t) return;
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(aviso._t); aviso._t = setTimeout(() => { t.style.display = 'none'; }, ms || 4500);
+}
+function errorEnvio(e) { console.error(e); aviso((e && e.message) || 'No se pudo enviar. Comprueba tu conexión.'); }
+function nombreDe(uid) {
+  const p = O.players.find(x => x.id === uid); if (p) return p.nombre;
+  return (O.hostRoles[uid] && O.hostRoles[uid].name) || 'Jugador';
+}
+function ajustes() { return parse(O.pub.settings, {}); }
+function settingsObj() {
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount };
+}
+
+// ---------- sesión guardada (para volver tras recargar) ----------
+function guardarSesion() { lsSet(SES_KEY, JSON.stringify({ roomId: O.roomId, roomName: O.roomName, nombre: O.myName, host: O.host, transporte: O.transporte, t: Date.now() })); }
+function leerSesion() { const s = parse(lsGet(SES_KEY), null); if (!s || !s.roomId || Date.now() - (s.t || 0) > SES_MAX_MS) return null; return s; }
+function borrarSesion() { lsDel(SES_KEY); }
+
+// ---------- menú: crear / unirse ----------
+function abrirMenu() {
+  $('on-menu-error').textContent = '';
+  const n = lsGet(NAME_KEY); if (n && !$('on-name').value) $('on-name').value = n;
+  go('screen-online-menu');
+}
+function setBusy(b, txt) {
+  O.busy = b;
+  ['on-btn-create', 'on-btn-join', 'on-btn-menu-back'].forEach(id => { const e = $(id); if (e) e.disabled = b; });
+  const m = $('on-menu-status'); if (m) m.textContent = b ? (txt || 'Conectando…') : '';
+}
+async function conectar(modo) {
+  if (O.busy) return;
+  const room = $('on-room').value, pass = $('on-pass').value, name = $('on-name').value.trim();
+  const err = $('on-menu-error'); err.textContent = '';
+  if (room.trim().length < 3) { err.textContent = 'El nombre de la sala debe tener al menos 3 caracteres.'; return; }
+  if (pass.trim().length < 4) { err.textContent = 'La contraseña debe tener al menos 4 caracteres.'; return; }
+  if (!name) { err.textContent = 'Escribe tu nombre.'; return; }
+  O.early = { jug: null, estado: null, rol: null };
+  setBusy(true, modo === 'crear' ? 'Creando la sala…' : 'Entrando en la sala…');
+  try {
+    const res = modo === 'crear' ? await Transport.crearSala(room, pass, name) : await Transport.unirse(room, pass, name);
+    entrarEnSala(res, room.trim(), name);
+  } catch (e) {
+    err.textContent = (e && e.message) || 'No se pudo conectar.';
+  } finally { setBusy(false); }
+}
+function entrarEnSala(res, roomName, name) {
+  Object.assign(O, { active: true, host: !!res.esAnfitrion, uid: res.uid, roomId: res.roomId, roomName, myName: name, transporte: res.transporte || 'firebase', avisos: res.avisos || [], players: [], pub: {}, myRole: null,
+    hostRoles: {}, order: [], elim: new Set(), firstState: true, revealed: false, lastRoundShown: -1, pending: false, lastSettings: '', timerSecs: null, resultShown: '' });
+  O.savedNames = playerNames.slice();
+  O.popupSeen = Number(ssGet(POPUP_KEY)) || 0;
+  lsSet(NAME_KEY, name); guardarSesion();
+  document.body.classList.add('online-on');
+  if (O.host) {
+    $('screen-setup').classList.add('online-host');
+    O.setInt = setInterval(() => publicarAjustes(false), 1000);
+    pedirWake();
+    publicarAjustes(true);
+  }
+  O.tick = setInterval(tickTimer, 250);
+  if (O.avisos.length) aviso(O.avisos.join(' '), 9000);
+  const e = O.early; O.early = { jug: null, estado: null, rol: null };
+  if (e.jug) onJugadores(e.jug);
+  if (e.estado) onMsg(e.estado);
+  if (e.rol) onMsg(e.rol);
+  renderTodo(); route();
+}
+function limpiar() {
+  clearInterval(O.tick); clearInterval(O.setInt); O.tick = O.setInt = null;
+  cerrarPopup(false); liberarWake();
+  O.active = false; O.host = false; O.pub = {}; O.myRole = null; O.hostRoles = {}; O.players = []; O.order = []; O.pending = false;
+  O.early = { jug: null, estado: null, rol: null };
+  borrarSesion();
+  document.body.classList.remove('online-on');
+  $('screen-setup').classList.remove('online-host');
+  if (O.savedNames) { playerNames = O.savedNames.slice(); setPlayers(playerNames.length); O.savedNames = null; }
+  updateModeUI();
+  const b = $('on-resume-banner'); if (b) b.style.display = 'none';
+  go('screen-setup');
+}
+async function salirDeSala() {
+  if (!O.active) return;
+  const host = O.host;
+  if (!confirm(host ? '¿Cerrar la sala para todos los jugadores?' : '¿Salir de la sala?')) return;
+  try { if (host) await Transport.cerrarSala(); else await Transport.salir(); } catch (e) { /* la sala se abandona igualmente */ }
+  limpiar();
+}
+function onSalaCerrada() {
+  if (!O.active) return;
+  aviso('La sala se ha cerrado.');
+  Transport.salir().catch(() => {});
+  limpiar();
+}
+
+function onExpulsado() {
+  if (!O.active) return;
+  aviso('El anfitrión te ha expulsado de la sala.', 6000);
+  Transport.salir().catch(() => {});
+  limpiar();
+}
+function hostExpulsar(p) {
+  if (!O.host || p.esAnfitrion || p.yo) return;
+  if (!confirm('¿Expulsar a ' + p.nombre + ' de la sala?')) return;
+  Transport.expulsar(p.id).then(() => vibrate(20)).catch(errorEnvio);
+}
+
+// ---------- recibir mensajes ----------
+function onMsg(m) {
+  if (!m) return;
+  // Los primeros datos de la sala llegan mientras el transporte aún está terminando de entrar: se guardan y se reproducen.
+  if (!O.active) { if (m.tipo === 'estado') O.early.estado = m; else if (m.tipo === 'rol') O.early.rol = m; return; }
+  switch (m.tipo) {
+    case 'estado': { const { tipo, ...st } = m; onEstado(st); break; }
+    case 'rol': onRol(m); break;
+    case 'sala-cerrada': onSalaCerrada(); break;
+    case 'expulsado': onExpulsado(); break;
+    case 'clave': if (O.host) hostOnClave(m); break;
+    case 'palabras': if (O.host) hostOnPalabras(m); break;
+    default: break;
+  }
+}
+function onJugadores(lista) {
+  if (!O.active) { O.early.jug = lista || []; return; }
+  O.players = lista || [];
+  if (O.host) syncHostPlayers();
+  renderTodo();
+}
+function onConexion(c) {
+  O.conn = c;
+  const b = $('on-conn-banner'); if (b) b.style.display = (!c && O.active) ? 'block' : 'none';
+}
+function onEstado(st) {
+  O.pub = st;
+  if (st.phase !== 'alcalde') O.sentWords = false;
+  O.elim = new Set(parse(st.eliminated, []));
+  const enJuego = st.phase === 'playing' || st.phase === 'ended';
+  if (O.firstState) {
+    O.firstState = false;
+    if (enJuego) O.lastRoundShown = st.round;
+    if (O.host && enJuego) recuperarRolesHost();
+    if (O.host && st.phase === 'alcalde') { volverALobby(true); return; } // el reparto pendiente se perdió al recargar
+  } else if (st.phase === 'playing' && st.round !== O.lastRoundShown) {
+    O.lastRoundShown = st.round; O.revealed = false;
+    if (st.starting) showStartingPlayerDialog(escapeHtml(st.starting));
+  }
+  if (!enJuego) cerrarPopup(false);
+  revisarPopup();
+  route(); renderTodo();
+}
+function onRol(m) {
+  if (m.vacio) { O.myRole = null; O.revealed = false; renderCard(); return; }
+  const antes = O.myRole; O.myRole = m;
+  if (!antes || antes.round !== m.round) O.revealed = false;
+  renderCard();
+  if (O.pub.phase === 'playing' || O.pub.phase === 'ended') route();
+}
+
+// ---------- decidir qué pantalla mostrar ----------
+function route() {
+  if (!O.active) return;
+  const ph = O.pub.phase || 'lobby', cur = curScreen();
+  if (ph === 'lobby') {
+    if (O.host) { if (cur !== 'screen-setup' && cur !== 'screen-archivo') go('screen-setup'); }
+    else if (cur !== 'screen-online-lobby') go('screen-online-lobby');
+  } else if (ph === 'alcalde') {
+    if (O.pub.alcalde === O.uid && !O.sentWords) { if (cur !== 'screen-alcalde') mostrarAlcalde(); }
+    else if (cur !== 'screen-online-lobby') go('screen-online-lobby');
+  } else if (cur !== 'screen-online-game') go('screen-online-game');
+}
+function renderTodo() { renderHostPanel(); renderLobby(); renderGame(); }
+
+// ---------- jugadores: chips, lobby y panel del anfitrión ----------
+function chip(p, expulsable) {
+  const d = el('div', 'on-player');
+  d.appendChild(el('span', 'on-dot ' + (p.conectado ? 'on' : 'off')));
+  d.appendChild(el('span', 'on-pname', p.nombre + (p.esAnfitrion ? ' 👑' : '') + (p.yo ? ' (tú)' : '')));
+  if (!p.conectado) d.appendChild(el('span', 'on-off', 'sin conexión'));
+  if (expulsable && !p.esAnfitrion && !p.yo) {
+    const b = el('button', 'on-kick', 'Expulsar'); b.type = 'button';
+    b.addEventListener('click', e => { e.stopPropagation(); hostExpulsar(p); });
+    d.appendChild(b);
+  }
+  return d;
+}
+function syncHostPlayers() {
+  playerNames = O.players.map(p => p.nombre);
+  state.numPlayers = playerNames.length;
+  updateImpostorCap(); updateModeUI();
+}
+function renderHostPanel() {
+  const p = $('online-host-panel'); if (!p) return;
+  p.style.display = (O.active && O.host) ? 'block' : 'none';
+  if (!(O.active && O.host)) return;
+  $('on-host-room').textContent = O.roomName;
+  $('on-host-transport').textContent = Transport.etiqueta();
+  const w = $('on-host-warn');
+  if (O.transporte === 'peer') {
+    w.style.display = 'block';
+    w.textContent = '⚠️ Modo de respaldo (PeerJS): este móvil hace de servidor de la sala. No cierres ni recargues esta pestaña y no dejes que se bloquee la pantalla: si se pierde, los demás se quedan sin conexión.' + (O.avisos.length ? ' ' + O.avisos.join(' ') : '');
+  } else { w.style.display = 'none'; w.textContent = ''; }
+  const list = $('on-host-players'); list.innerHTML = '';
+  const lobby = (O.pub.phase || 'lobby') === 'lobby';
+  O.players.forEach(pl => list.appendChild(chip(pl, lobby)));
+  const n = O.players.length, off = O.players.filter(x => !x.conectado).length;
+  let msg = n < 3 ? 'Faltan jugadores: se necesitan al menos 3 (ahora ' + n + '). Que se unan con el nombre de la sala y la contraseña.' : n + ' jugadores en la sala.';
+  if (n >= 3 && off > 0) msg += ' ' + off + ' sin conexión.';
+  $('on-host-msg').textContent = msg;
+}
+function settingsLines() {
+  const s = ajustes(); if (!s.mode) return ['Esperando los ajustes del anfitrión…'];
+  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí' : 'no')];
+  l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
+  return l;
+}
+function renderLobby() {
+  const root = $('on-lobby-room'); if (!root) return;
+  root.textContent = O.roomName;
+  $('on-lobby-transport').textContent = Transport.etiqueta();
+  const list = $('on-lobby-players'); list.innerHTML = '';
+  O.players.forEach(pl => list.appendChild(chip(pl)));
+  const ph = O.pub.phase || 'lobby';
+  $('on-lobby-msg').textContent = ph === 'alcalde'
+    ? '👑 ' + (O.pub.alcaldeName || 'El Alcalde') + ' está eligiendo las palabras…'
+    : (O.host ? '' : 'Esperando a que el anfitrión empiece la partida…');
+  const box = $('on-lobby-settings'); box.innerHTML = '';
+  settingsLines().forEach(t => box.appendChild(el('div', 'on-setting', t)));
+  $('on-btn-cancel-round').style.display = (O.host && ph === 'alcalde') ? 'block' : 'none';
+}
+
+// ---------- pantalla de juego ----------
+function renderGame() {
+  if (!$('on-reveal-card')) return;
+  const s = ajustes();
+  const b = $('on-mode-badge'); b.innerHTML = '';
+  if (s.mode) b.appendChild(el('span', 'mode-badge ' + (s.mode === 'escondite' ? 'escondite' : s.mode), (MODOS[s.mode] || s.mode)));
+  $('on-player-name').textContent = O.myName;
+  $('on-round-label').textContent = 'Ronda ' + (O.pub.round || 1) + ' · Sala ' + O.roomName;
+  renderCard(); renderResult(); renderGamePlayers(); renderTimerControls();
+  const fin = $('on-btn-end'); fin.style.display = O.host ? 'block' : 'none';
+  fin.textContent = O.pub.result ? 'Nueva ronda' : 'Terminar ronda';
+  $('on-btn-results').style.display = O.host ? 'block' : 'none';
+  $('on-btn-clear-popup').style.display = (O.host && O.pub.popup) ? 'block' : 'none';
+}
+function renderCard() {
+  const card = $('on-reveal-card'), shown = $('on-reveal-shown'); if (!card) return;
+  const ver = !!(O.revealed && O.myRole);
+  card.classList.toggle('revealed', ver);
+  $('on-tap-text').textContent = O.myRole ? 'Toca para ver tu rol' : 'Esperando tu rol…';
+  const sig = ver ? O.myRole.round + '|' + O.myRole.card : '';
+  if (sig === O.cardSig && sig !== '') return; // sin cambios: no se toca (así no se borra la clave que se está escribiendo)
+  O.cardSig = sig;
+  shown.innerHTML = '';
+  if (ver) renderCardView(parse(O.myRole.card, []), shown);
+}
+function renderCardView(items, box) {
+  (Array.isArray(items) ? items : []).forEach(it => {
+    if (!it || typeof it !== 'object') return;
+    const t = typeof it.t === 'string' ? it.t.slice(0, 300) : '';
+    switch (it.k) {
+      case 'imp': box.appendChild(el('div', 'impostor-text', t)); break;
+      case 'sub': { const d = el('div', 'impostor-sub', t); if (it.f) { d.style.marginTop = '8px'; d.style.fontSize = '.8rem'; d.style.color = 'var(--text-faded)'; } box.appendChild(d); break; }
+      case 'word': renderWord(t, box); break;
+      case 'wtxt': box.appendChild(el('div', 'word-text', t)); break;
+      case 'hint': box.appendChild(el('div', 'hint-line', t)); break;
+      case 'badge': { const d = el('div', 'alcalde-badge', t); d.style.margin = '0 auto 8px'; box.appendChild(d); break; }
+      case 'key': { const k = el('div', 'secret-key-box'); k.appendChild(el('div', 'secret-key-label', it.l || 'Clave secreta')); k.appendChild(el('div', 'secret-key-word', t)); box.appendChild(k); break; }
+      case 'img': { const w = el('div', 'word-img-wrap'); box.appendChild(w); fetchWordImage(String(it.w || ''), String(it.c || ''), w, true); break; }
+      case 'keyinput': box.appendChild(crearEntradaClave()); break;
+      default: break;
+    }
+  });
+}
+function crearEntradaClave() {
+  const wrap = el('div', 'escondite-input-wrap');
+  wrap.appendChild(el('div', 'escondite-inp-label', '🔑 Escribe la palabra clave secreta de los impostores'));
+  const inp = el('input', 'escondite-inp'); inp.type = 'text'; inp.maxLength = 40; inp.placeholder = 'Clave secreta…';
+  const btn = el('button', 'btn-escondite-confirm', 'Confirmar clave');
+  wrap.addEventListener('click', e => e.stopPropagation());
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const v = inp.value.trim(); if (!v) { inp.focus(); return; }
+    btn.disabled = true; inp.disabled = true; btn.textContent = 'Enviando…';
+    if (O.host) hostOnClave({ de: O.uid, clave: v });
+    else Transport.enviar('host', { tipo: 'clave', clave: v }).catch(e2 => { btn.disabled = false; inp.disabled = false; btn.textContent = 'Confirmar clave'; errorEnvio(e2); });
+    vibrate(30);
+  });
+  wrap.appendChild(inp); wrap.appendChild(btn);
+  return wrap;
+}
+function renderResult() {
+  const box = $('on-result'); if (!box) return;
+  const r = O.pub.result;
+  if (!r) { box.className = ''; box.innerHTML = ''; return; }
+  box.className = 'victory-msg';
+  box.innerHTML = r === 'civiles'
+    ? '<div class="victory-emoji">🏆</div><div class="victory-title civiles">Han ganado los Civiles</div><div class="victory-sub">Ha ganado la verdad.</div>'
+    : '<div class="victory-emoji">🐄</div><div class="victory-title impostores">Ha ganado la mentira</div><div class="victory-sub">Vergüenza para tu vaca.</div>';
+  const k = O.pub.round + ':' + r;
+  if (O.resultShown !== k) { O.resultShown = k; vibrate([100, 50, 100, 50, 200]); }
+}
+function renderGamePlayers() {
+  const box = $('on-players'); if (!box) return;
+  box.innerHTML = '';
+  // El anfitrión ve también a quien se fue a media ronda (cuenta para la victoria); el resto ve la sala actual.
+  const filas = O.host && Object.keys(O.hostRoles).length
+    ? Object.keys(O.hostRoles).map(id => { const p = O.players.find(x => x.id === id); return { id, nombre: nombreDe(id), conectado: p ? p.conectado : false, fuera: !p }; })
+    : O.players.map(p => ({ id: p.id, nombre: p.nombre, conectado: p.conectado, fuera: false }));
+  filas.forEach(f => {
+    const elim = O.elim.has(f.id);
+    const row = el('div', 'game-player-row' + (elim ? ' eliminated' : ''));
+    const nm = el('div', 'game-player-name'); nm.appendChild(el('span', 'on-dot ' + (f.conectado ? 'on' : 'off'))); nm.appendChild(document.createTextNode(' ' + f.nombre + (f.fuera ? ' (se fue)' : '')));
+    row.appendChild(nm);
+    if (O.host) {
+      const btn = el('button', 'btn-ver-rol' + (elim ? ' eliminated' : ''), elim ? 'Eliminado' : 'Ver rol');
+      btn.addEventListener('click', e => { e.stopPropagation(); if (!elim) hostVerRol(f.id); });
+      row.appendChild(btn);
+    } else if (elim) row.appendChild(el('div', 'btn-ver-rol eliminated', 'Eliminado'));
+    box.appendChild(row);
+  });
+}
+
+// ---------- ventana "eliminado" visible en todos los móviles ----------
+function mostrarPopup(p) {
+  cerrarPopup(false);
+  const ov = el('div', 'rol-overlay'); const imp = p.role === 'impostor';
+  ov.innerHTML = '<div class="rol-card"><div class="rol-player-label">Eliminado</div><div class="rol-player-name">' + escapeHtml(p.name) + '</div>' +
+    '<div class="rol-icon">' + (imp ? '🎭' : '👤') + '</div>' +
+    '<div class="rol-verdict ' + (imp ? 'impostor' : 'civil') + '">' + (imp ? 'IMPOSTOR ELIMINADO' : 'CIVIL ELIMINADO') + '</div>' +
+    '<div class="rol-sub">' + (imp ? 'Se ha eliminado a un Impostor.<br>Se ha hecho justicia.' : 'Habéis matado un inocente.<br>Era un Civil.') + '</div>' +
+    '<div class="rol-tap-hint">Toca para cerrar</div></div>';
+  ov.addEventListener('click', () => cerrarPopup(true));
+  document.body.appendChild(ov);
+  O.popupEl = ov; O.popupId = p.id;
+  vibrate(imp ? [40, 30, 80] : [60, 20, 60]);
+}
+function cerrarPopup(marcar) {
+  if (O.popupEl) { try { document.body.removeChild(O.popupEl); } catch (e) { /* ya cerrado */ } O.popupEl = null; }
+  if (marcar && O.popupId) { O.popupSeen = Math.max(O.popupSeen, O.popupId); ssSet(POPUP_KEY, String(O.popupSeen)); }
+}
+function revisarPopup() {
+  const p = O.pub.popup;
+  if (!p) { cerrarPopup(false); return; }
+  if (O.host) { O.popupSeen = Math.max(O.popupSeen, p.id); return; } // el anfitrión ya lo vio en su propio aviso
+  if (p.id > O.popupSeen && !(O.popupEl && O.popupId === p.id)) mostrarPopup(p);
+}
+
+// ---------- cronómetro (lo controla el anfitrión; todos lo ven) ----------
+function timerMs() {
+  const t = O.pub.timer; if (!t) return null;
+  const ms = t.running ? t.remaining * 1000 - (Transport.ahora() - t.at) : t.remaining * 1000;
+  return Math.max(0, ms);
+}
+function tickTimer() { if (O.active && O.cur === 'screen-online-game') renderTimer(); }
+function renderTimer() {
+  const area = $('on-timer-area'); if (!area) return;
+  const ms = timerMs();
+  area.style.display = ms === null ? 'none' : 'block';
+  if (ms === null) return;
+  const secs = Math.ceil(ms / 1000), t = $('on-timer-time'), lab = $('on-timer-label');
+  t.textContent = fmtTime(secs);
+  t.classList.remove('warning', 'danger', 'finished');
+  const run = !!O.pub.timer.running;
+  if (secs === 0) { t.classList.add('finished'); lab.textContent = '¡Tiempo terminado!'; }
+  else if (secs <= 10) { t.classList.add('danger'); lab.textContent = 'Tiempo restante'; }
+  else if (secs <= 30) { t.classList.add('warning'); lab.textContent = 'Tiempo restante'; }
+  else lab.textContent = run ? 'Tiempo restante' : 'En pausa';
+  if (run && secs !== O.vibSecs) {
+    O.vibSecs = secs;
+    if (secs <= 10 && secs > 0) vibrate(40);
+    if (secs === 0) vibrate([200, 100, 200, 100, 400]);
+  }
+  $('on-btn-timer-start').textContent = run ? 'Pausar' : 'Iniciar';
+}
+function renderTimerControls() {
+  const c = $('on-timer-host'); if (c) c.style.display = O.host ? 'block' : 'none';
+  renderTimer();
+}
+function escribirTimer(running, remaining) {
+  return Transport.enviar('todos', { tipo: 'estado', timer: { running, remaining: Math.max(0, Math.round(remaining)), at: Transport.ahora() } }).catch(errorEnvio);
+}
+function secsBase() { return O.timerSecs || ajustes().secs || 180; }
+function hostTimerStart() {
+  const t = O.pub.timer; if (!O.host || !t) return;
+  const ms = timerMs();
+  if (t.running) escribirTimer(false, Math.ceil(ms / 1000));
+  else if (ms > 0) escribirTimer(true, Math.ceil(ms / 1000));
+  vibrate(15);
+}
+function hostTimerReset() { if (!O.host || !O.pub.timer) return; escribirTimer(false, secsBase()); vibrate(20); }
+function hostTimerChange() {
+  if (!O.host || !O.pub.timer) return;
+  const v = parseInt($('on-inp-timer').value);
+  if (!v || v < 10 || v > 3600) return;
+  O.timerSecs = v; $('on-inp-timer').value = ''; escribirTimer(false, v); vibrate(20);
+}
+
+// =====================================================================
+//                      LADO DEL ANFITRIÓN
+// =====================================================================
+function publicarAjustes(forzar) {
+  if (!O.active || !O.host || (O.pub.phase || 'lobby') !== 'lobby') return;
+  const s = JSON.stringify(settingsObj());
+  if (!forzar && s === O.lastSettings) return;
+  O.lastSettings = s;
+  Transport.enviar('todos', { tipo: 'estado', settings: s }).catch(() => { O.lastSettings = ''; });
+}
+// Llamado por el botón "Comenzar" (script.js) antes de repartir.
+function prepareStart(errEl) {
+  if (!O.active || !O.host) return false;
+  if ((O.pub.phase || 'lobby') !== 'lobby') { errEl.textContent = 'Ya hay una ronda en marcha.'; return false; }
+  if (O.players.length < 3) { errEl.textContent = 'Se necesitan al menos 3 jugadores en la sala (ahora ' + O.players.length + ').'; return false; }
+  O.order = O.players.map(p => p.id);
+  playerNames = O.players.map(p => p.nombre);
+  state.numPlayers = playerNames.length;
+  return true;
+}
+// Modo Alcalde: ya están elegidos impostores y alcalde; ahora el alcalde escribe las palabras en SU móvil.
+function onAlcaldeChosen() {
+  const alc = O.order[state.alcaldePlayer - 1];
+  O.pending = true;
+  const fijas = state.gameMode === 'multiple' ? state.multiWordCount : 0;
+  Transport.enviar('todos', { tipo: 'estado', phase: 'alcalde', alcalde: alc, alcaldeName: nombreDe(alc).slice(0, 24), alcaldeWords: fijas, settings: JSON.stringify(settingsObj()), result: null, popup: null })
+    .catch(e => { O.pending = false; errorEnvio(e); });
+}
+function mostrarAlcalde() {
+  const s = ajustes();
+  state.hintOn = !!s.hint;
+  const n = O.pub.alcaldeWords || 1;
+  state.alcaldeNumWords = n;
+  $('alcalde-who-name').textContent = O.myName;
+  $('inp-alcalde-numwords').value = n;
+  const w = $('inp-alcalde-numwords').closest('.alcalde-num-words'); if (w) w.style.display = O.pub.alcaldeWords ? 'none' : 'block';
+  buildAlcaldeWordsList();
+  go('screen-alcalde');
+}
+// Llamado por "Confirmar" del Alcalde (script.js).
+function sendWords(words, hints) {
+  if (O.host) { hostOnPalabras({ de: O.uid, palabras: words, pistas: hints }); return; }
+  Transport.enviar('host', { tipo: 'palabras', palabras: words, pistas: hints })
+    .then(() => { O.sentWords = true; route(); renderLobby(); })
+    .catch(errorEnvio);
+}
+function hostOnPalabras(m) {
+  if (!O.host || !O.pending) return;
+  if (m.de !== O.order[state.alcaldePlayer - 1]) return;
+  const words = (Array.isArray(m.palabras) ? m.palabras : []).map(w => String(w).trim().slice(0, 60)).filter(Boolean).slice(0, 20);
+  if (words.length === 0) return;
+  if (state.gameMode === 'multiple' && words.length !== state.multiWordCount) return;
+  state.alcaldeHints = (Array.isArray(m.pistas) ? m.pistas : []).map(h => String(h).trim().slice(0, 60));
+  if (words.length === 1) { state.word = words[0]; state.words = []; state.playerWordIdx = {}; }
+  else {
+    state.word = null; state.words = words; state.multiWordCount = words.length;
+    const nonImp = []; for (let i = 1; i <= state.numPlayers; i++) if (!state.impostorSet.has(i)) nonImp.push(i);
+    state.playerWordIdx = {}; fisherYates(nonImp).forEach((p, i) => { state.playerWordIdx[p] = i % words.length; });
+  }
+  state.alcaldeWord = words.join(' / ');
+  for (let i = 1; i <= state.numPlayers; i++) if (state.impostorSet.has(i)) { state.firstImpostor = i; break; }
+  state.esconditeKeyWritten = false;
+  O.pending = false;
+  dealRound();
+}
+// Tarjeta que verá cada jugador, ya resuelta (lista de elementos). Réplica de buildRevealContent para cada modo.
+function buildCardView(p) {
+  const isImp = state.impostorSet.has(p), mode = state.gameMode, it = [];
+  const imp = () => it.push({ k: 'imp', t: 'Eres el Impostor' });
+  const sub = (t, f) => it.push({ k: 'sub', t, f: f ? 1 : 0 });
+  const hint = t => it.push({ k: 'hint', t });
+  const img = (w, c) => { if (state.imagesOn && !isCatNoPng(c)) it.push({ k: 'img', w, c }); };
+  const hints = state.alcaldeHints || [];
+  if (state.customOn) {
+    if (mode === 'escondite' && isImp && p === state.firstImpostor && !state.esconditeKeyWritten) { it.push({ k: 'keyinput' }); return it; }
+    if (isImp) {
+      const numW = state.words.length > 1 ? state.words.length : 1;
+      imp();
+      sub(mode === 'escondite' ? 'Conoces la palabra · Encuéntrate con tus aliados' : (numW > 1 ? 'Hay ' + numW + ' palabras distintas' : 'No conoces la palabra'));
+      if (mode === 'escondite' && state.word) it.push({ k: 'word', t: state.word });
+      if (mode === 'escondite') it.push({ k: 'key', l: 'Clave secreta', t: state.esconditeKey || '(el primer impostor la está escribiendo…)' });
+      if (state.hintOn) hints.forEach((h, i) => { if (h) hint(numW > 1 ? 'Pista ' + (i + 1) + ' · ' + h : 'Pista · ' + h); });
+    } else {
+      const alc = p === state.alcaldePlayer;
+      if (alc) it.push({ k: 'badge', t: '👑 Alcalde' });
+      if (state.words.length > 1) {
+        const w = state.playerWordIdx[p] !== undefined ? state.playerWordIdx[p] : 0;
+        it.push({ k: 'wtxt', t: state.words[w] });
+        if (state.hintOn && hints[w]) hint('Pista · ' + hints[w]);
+        sub('Grupo ' + (w + 1) + ' de ' + state.words.length, true);
+      } else {
+        it.push({ k: 'wtxt', t: state.word || '—' });
+        if (state.hintOn && hints[0]) hint('Pista · ' + hints[0]);
+      }
+      if (state.category && state.category !== 'Personalizada') hint('Categoría · ' + state.category);
+      if (alc) sub('Tienes voto de gracia');
+    }
+    return it;
+  }
+  if (mode === 'multiple') {
+    if (isImp) { imp(); sub('Hay ' + state.multiWordCount + ' palabras distintas'); if (state.hintOn) hint('Pista · ' + state.category); }
+    else {
+      const w = state.playerWordIdx[p] !== undefined ? state.playerWordIdx[p] : 0;
+      const cat = (state.wordCategories && state.wordCategories[w]) || state.category;
+      it.push({ k: 'word', t: state.words[w] || '—' }); hint('Categoría · ' + cat); img(state.words[w], cat);
+      if (state.multiWordCount > 2) sub('Grupo ' + (w + 1) + ' de ' + state.multiWordCount, true);
+    }
+  } else if (mode === 'escondite') {
+    if (isImp) {
+      imp(); sub('Conoces la palabra · Encuéntrate con tus aliados');
+      it.push({ k: 'word', t: state.word });
+      if (state.esconditeKey) it.push({ k: 'key', l: 'Clave secreta', t: state.esconditeKey });
+      if (state.hintOn) hint('Pista · ' + state.category);
+    } else {
+      it.push({ k: 'word', t: state.word }); hint('Categoría · ' + state.category);
+      if (state.hintOn) hint('Pista · ' + state.category);
+      img(state.word, state.category);
+    }
+  } else if (isImp) { imp(); sub('No reveles tu identidad'); if (state.hintOn) hint('Pista · ' + state.category); }
+  else { it.push({ k: 'word', t: state.word }); hint('Categoría · ' + state.category); img(state.word, state.category); }
+  return it;
+}
+function resText(i) {
+  if (state.impostorSet.has(i)) return state.gameMode === 'escondite' ? clean(state.word) + ' / 🔑 ' + clean(state.esconditeKey) : '—';
+  if (state.words && state.words.length > 1) { const x = state.playerWordIdx[i]; return x === undefined ? '—' : clean(state.words[x]); }
+  return clean(state.word);
+}
+function rolDoc(i, ronda) {
+  const uid = O.order[i - 1], isImp = state.impostorSet.has(i), res = resText(i);
+  return { uid, res, doc: { round: ronda, role: isImp ? 'impostor' : 'civil', card: JSON.stringify(buildCardView(i)), res: res.slice(0, 280) } };
+}
+// Reparte: escribe a cada jugador SOLO su tarjeta y publica el estado público de la ronda.
+function dealRound() {
+  const n = O.order.length, ronda = (O.pub.round || 0) + 1;
+  const roles = {}; O.hostRoles = {};
+  for (let i = 1; i <= n; i++) {
+    const r = rolDoc(i, ronda); roles[r.uid] = r.doc;
+    O.hostRoles[r.uid] = { role: r.doc.role, res: r.res, name: nombreDe(r.uid) };
+  }
+  const ini = (state.customOn && state.alcaldePlayer) ? state.alcaldePlayer : Math.floor(Math.random() * n) + 1;
+  O.elim = new Set(); O.timerSecs = null; O.vibSecs = -1;
+  const estado = {
+    phase: 'playing', round: ronda, settings: JSON.stringify(settingsObj()), starting: nombreDe(O.order[ini - 1]).slice(0, 24),
+    alcalde: null, alcaldeName: null, alcaldeWords: null, eliminated: '[]', popup: null, result: null,
+    timer: state.timerOn ? { running: false, remaining: state.timerSeconds, at: Transport.ahora() } : null
+  };
+  Transport.enviar('todos', { tipo: 'reparto', roles, estado }).catch(e => { O.hostRoles = {}; errorEnvio(e); });
+}
+// Escondite con Alcalde: el primer impostor envía la clave y se reenvía a sus aliados.
+function hostOnClave(m) {
+  if (!O.host || state.gameMode !== 'escondite' || !state.customOn || state.esconditeKeyWritten) return;
+  if (m.de !== O.order[state.firstImpostor - 1]) return;
+  const k = String(m.clave || '').trim().slice(0, 60); if (!k) return;
+  state.esconditeKey = k; state.esconditeKeyWritten = true;
+  const ronda = O.pub.round || 1;
+  for (let i = 1; i <= O.order.length; i++) {
+    if (!state.impostorSet.has(i)) continue;
+    const r = rolDoc(i, ronda);
+    if (O.hostRoles[r.uid]) O.hostRoles[r.uid].res = r.res;
+    Transport.enviar(r.uid, { tipo: 'rol', ...r.doc }).catch(errorEnvio);
+  }
+}
+function calcularGanador() {
+  const ids = Object.keys(O.hostRoles);
+  const impVivos = ids.filter(u => O.hostRoles[u].role === 'impostor' && !O.elim.has(u)).length;
+  const civVivos = ids.filter(u => O.hostRoles[u].role === 'civil' && !O.elim.has(u)).length;
+  if (impVivos === 0) return 'civiles';
+  if (impVivos >= civVivos) return 'impostores';
+  return null;
+}
+function hostVerRol(uid) {
+  const info = O.hostRoles[uid]; if (!info || O.elim.has(uid)) return;
+  const imp = info.role === 'impostor', name = nombreDe(uid);
+  const ov = el('div', 'rol-overlay');
+  ov.innerHTML = '<div class="rol-card"><div class="rol-player-label">Jugador</div><div class="rol-player-name">' + escapeHtml(name) + '</div>' +
+    '<div class="rol-icon">' + (imp ? '🎭' : '👤') + '</div>' +
+    '<div class="rol-verdict ' + (imp ? 'impostor' : 'civil') + '">' + (imp ? 'IMPOSTOR ELIMINADO' : 'CIVIL ELIMINADO') + '</div>' +
+    '<div class="rol-sub">' + (imp ? 'Se ha eliminado a un Impostor.<br>Se ha hecho justicia.' : 'Habéis matado un inocente.<br>Era un Civil.') + '</div>' +
+    '<div class="rol-tap-hint">Toca para cerrar (se avisa a todos)</div></div>';
+  ov.addEventListener('click', () => { document.body.removeChild(ov); hostEliminar(uid); });
+  document.body.appendChild(ov);
+  vibrate(imp ? [40, 30, 80] : [60, 20, 60]);
+}
+function hostEliminar(uid) {
+  const info = O.hostRoles[uid]; if (!info || O.elim.has(uid)) return;
+  O.elim.add(uid);
+  const id = Math.max(Transport.ahora(), O.lastPopupId + 1); O.lastPopupId = id; O.popupSeen = Math.max(O.popupSeen, id);
+  const upd = { tipo: 'estado', eliminated: JSON.stringify([...O.elim]), popup: { id, name: nombreDe(uid).slice(0, 24), role: info.role } };
+  const g = calcularGanador();
+  if (g) { upd.result = g; upd.phase = 'ended'; }
+  Transport.enviar('todos', upd).catch(e => { O.elim.delete(uid); errorEnvio(e); });
+}
+function hostResultados() {
+  const ov = el('div', 'results-overlay'); let filas = '';
+  Object.keys(O.hostRoles).forEach(uid => {
+    const r = O.hostRoles[uid], imp = r.role === 'impostor';
+    filas += '<tr><td>' + escapeHtml(nombreDe(uid)) + (O.elim.has(uid) ? ' <span class="elim-mark">✕</span>' : '') + '</td><td class="' + (imp ? 'role-impostor' : 'role-civil') + '">' + (imp ? 'Impostor' : 'Civil') +
+      '</td><td style="color:var(--text-faded);font-size:0.8rem;">' + escapeHtml(r.res) + '</td></tr>';
+  });
+  ov.innerHTML = '<div class="results-card"><button class="results-close" id="on-results-close">✕ Cerrar</button><div class="results-title">Resultados</div><table class="results-table"><thead><tr><th>Jugador</th><th>Rol</th><th>Palabra</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
+  ov.querySelector('#on-results-close').addEventListener('click', e => { e.stopPropagation(); document.body.removeChild(ov); });
+  ov.addEventListener('click', e => { if (e.target === ov) document.body.removeChild(ov); });
+  document.body.appendChild(ov);
+}
+function volverALobby(silencioso) {
+  if (!O.host) return;
+  O.hostRoles = {}; O.elim = new Set(); O.pending = false; O.timerSecs = null;
+  Transport.enviar('todos', { tipo: 'reparto', roles: null, estado: { phase: 'lobby', round: O.pub.round || 0, settings: JSON.stringify(settingsObj()), starting: null, alcalde: null, alcaldeName: null, alcaldeWords: null, timer: null, eliminated: null, popup: null, result: null } })
+    .catch(errorEnvio);
+  O.lastSettings = JSON.stringify(settingsObj());
+  if (!silencioso) vibrate(30);
+}
+function hostTerminar() {
+  if (!O.host) return;
+  if (!O.pub.result && !confirm('¿Terminar la ronda y volver al lobby?')) return;
+  volverALobby(false);
+}
+async function recuperarRolesHost() {
+  const roles = await Transport.leerRoles();
+  O.hostRoles = {};
+  Object.keys(roles).forEach(uid => { O.hostRoles[uid] = { role: roles[uid].role, res: roles[uid].res || '—', name: nombreDe(uid) }; });
+  renderTodo();
+}
+function hostQuitarAviso() { if (O.host) Transport.enviar('todos', { tipo: 'estado', popup: null }).catch(errorEnvio); }
+
+// ---------- pantalla encendida (anfitrión) ----------
+async function pedirWake() {
+  try {
+    if (navigator.wakeLock && O.host && !O.wake) {
+      O.wake = await navigator.wakeLock.request('screen');
+      O.wake.addEventListener('release', () => { O.wake = null; });
+    }
+  } catch (e) { /* no disponible: se ignora */ }
+}
+function liberarWake() { try { if (O.wake) O.wake.release(); } catch (e) { /* nada */ } O.wake = null; }
+
+// ---------- volver a la sala tras recargar ----------
+async function intentarReanudar(ses) {
+  O.early = { jug: null, estado: null, rol: null };
+  const busy = $('on-busy'); if (busy) { busy.style.display = 'flex'; $('on-busy-text').textContent = 'Volviendo a la sala «' + ses.roomName + '»…'; }
+  try {
+    const res = await Transport.reanudar({ roomId: ses.roomId, transporte: ses.transporte });
+    entrarEnSala(res, ses.roomName, ses.nombre);
+  } catch (e) {
+    const definitivo = e && (e.code === 'sala-no-encontrada');
+    if (definitivo) { borrarSesion(); aviso(e.message); }
+    else mostrarBannerReanudar(ses, (e && e.message) || 'No se pudo reconectar.');
+  } finally { if (busy) busy.style.display = 'none'; }
+}
+function mostrarBannerReanudar(ses, msg) {
+  const b = $('on-resume-banner'); if (!b) return;
+  $('on-resume-text').textContent = 'Tienes una sala pendiente: «' + ses.roomName + '». ' + msg;
+  b.style.display = 'block';
+}
+
+// ---------- enganche de eventos ----------
+function bind() {
+  $('btn-open-online').addEventListener('click', abrirMenu);
+  $('on-btn-menu-back').addEventListener('click', () => go('screen-setup'));
+  $('on-btn-create').addEventListener('click', () => conectar('crear'));
+  $('on-btn-join').addEventListener('click', () => conectar('unirse'));
+  $('on-btn-leave').addEventListener('click', salirDeSala);
+  $('on-btn-leave-lobby').addEventListener('click', salirDeSala);
+  $('on-host-leave').addEventListener('click', salirDeSala);
+  $('on-btn-cancel-round').addEventListener('click', () => volverALobby(false));
+  $('on-reveal-card').addEventListener('click', () => { if (!O.myRole) return; O.revealed = !O.revealed; vibrate(O.revealed ? 25 : 15); renderCard(); });
+  $('on-btn-results').addEventListener('click', () => { hostResultados(); vibrate(15); });
+  $('on-btn-end').addEventListener('click', hostTerminar);
+  $('on-btn-clear-popup').addEventListener('click', hostQuitarAviso);
+  $('on-btn-timer-start').addEventListener('click', hostTimerStart);
+  $('on-btn-timer-reset').addEventListener('click', hostTimerReset);
+  $('on-btn-timer-change').addEventListener('click', hostTimerChange);
+  $('on-resume-retry').addEventListener('click', () => { const s = leerSesion(); $('on-resume-banner').style.display = 'none'; if (s) intentarReanudar(s); });
+  $('on-resume-discard').addEventListener('click', () => { borrarSesion(); $('on-resume-banner').style.display = 'none'; });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && O.active && O.host) pedirWake(); });
+  Transport.alRecibir(onMsg); Transport.alCambiarJugadores(onJugadores); Transport.alConexion(onConexion);
+  const ses = leerSesion(); if (ses) intentarReanudar(ses);
+}
+bind();
+
+return {
+  get active() { return O.active; }, get isHost() { return O.host; },
+  prepareStart, onAlcaldeChosen, sendWords, dealRound,
+  _O: O
+};
+})();
