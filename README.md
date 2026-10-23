@@ -13,6 +13,7 @@ Sin npm, sin bundler, sin backend propio. Todo el interfaz y los mensajes están
 index.html                  Interfaz + lista de palabras de serie (bloque <script id="palabras-json">)
 css/styles.css              Estilos
 js/script.js                Lógica del juego (modo local), lista de palabras, Guardar/Cargar JSON, imágenes de Wikipedia
+js/editor.js             Editor de palabras (renombrar, editar palabra y descripción, imágenes, mover, deshacer, guardado en el navegador)
 js/online.js                Modo online: sala, lobby, reparto de roles, eliminaciones, cronómetro, expulsar jugadores
 js/transport.js             Fachada de transporte: elige Firebase o PeerJS automáticamente
 js/transport-firebase.js    Transporte principal (Firebase Realtime Database + Auth anónima). Aquí va firebaseConfig
@@ -39,6 +40,9 @@ Detalle completo en [`docs/GUIA.md`](docs/GUIA.md).
 Sin los pasos 4–5 el juego funciona igualmente con Firebase; sin 1–3 solo funcionará el respaldo PeerJS (solo STUN) y el modo local.
 
 ## Cómo cambiar las palabras
+
+Desde el móvil: Archivo de palabras → «✏️ Editor de palabras» (renombrar, editar palabra y descripción, imagen por palabra o categoría, mover entre categorías, quitar repetidas, ordenar, buscar y deshacer). Los cambios se guardan en el navegador de ese dispositivo.
+
 
 Se editan en el bloque `palabras-json` de `index.html`. Cada categoría tiene `id`, `nombre`, `bloqueada` (desmarcada por defecto), `sinImagenes` y `palabras` (admiten descripción entre paréntesis: `"Mercurio (planeta)"`).
 Opcional por categoría: `"imagen": "Archivo.jpg"` (imagen de Wikimedia Commons para todas las palabras) o `"imagenes": { "pizza": "Pizza.jpg" }` (por palabra; la clave va en minúsculas y sin acentos). Si existe, se usa siempre y no se busca en Wikipedia.

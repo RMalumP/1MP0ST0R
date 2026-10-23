@@ -55,3 +55,10 @@
 .on-info{background:rgba(74,158,255,.08);border-color:var(--blue);color:var(--text-dim)}
 .on-note{text-align:center;font-size:.72rem;color:var(--text-faded);margin-bottom:6px;letter-spacing:.04em}
 .on-hist summary{list-style:none}
+
+.ed-word{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.ed-row{display:flex;gap:6px;align-items:center}
+.ed-row .field-inp{padding:9px 10px;font-size:.88rem;min-width:0;flex:1}
+.ed-more{margin-top:6px}
+.ed-dup{border-color:var(--gold)}
+#editor-list .on-kick{flex:none}

@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=14">
+<link rel="stylesheet" href="css/styles.css?v=15">
 </head>
 <body>
 <div class="app">
@@ -402,6 +402,22 @@
     <button class="btn-secondary btn-ghost" id="on-btn-leave">Salir de la sala</button>
   </div>
 
+  <!-- ===== SCREEN 5: EDITOR DE PALABRAS ===== -->
+  <div class="screen" id="screen-editor">
+    <div class="archivo-header">
+      <button class="btn-back" id="editor-back">← Archivo</button>
+      <h2>Editor</h2>
+      <button class="btn-load" id="editor-undo" title="Deshacer el último cambio">↶ Deshacer</button>
+    </div>
+    <div class="on-msg" id="editor-status" style="margin:0 0 6px;"></div>
+    <div class="on-msg" id="editor-msg" style="margin:0 0 6px;color:var(--gold);"></div>
+    <input type="search" id="editor-search" class="field-inp" placeholder="Buscar categoría o palabra…" autocomplete="off" style="margin-bottom:12px;">
+    <div class="new-cat-section" style="padding:12px;">
+      <div class="timer-edit" style="margin-top:0;"><input type="text" id="editor-new-name" maxlength="40" placeholder="Nueva categoría…"><button id="editor-new-btn">Crear</button></div>
+    </div>
+    <div id="editor-list"></div>
+  </div>
+
   <!-- ===== SCREEN 4: ARCHIVO ===== -->
   <div class="screen" id="screen-archivo">
     <div class="archivo-header">
@@ -413,6 +429,8 @@
     </div>
     <div id="save-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--green); margin-bottom:10px; letter-spacing:0.1em;">✓ Guardado — ábrelo desde Descargas</div>
     <div id="load-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--blue); margin-bottom:10px; letter-spacing:0.1em;"></div>
+    <div class="on-msg" id="archivo-lista-estado" style="margin:0 0 8px;"></div>
+    <button class="btn-archivo" id="btn-open-editor" style="margin:0 0 8px;"><span>✏️</span> Editor de palabras (editar, mover, imágenes)</button>
     <button class="btn-archivo" id="btn-restore-seed" style="margin:0 0 12px;"><span>↺</span> Restaurar lista de serie</button>
 
     <!-- Nueva categoría -->
@@ -5102,8 +5120,9 @@
   ]
 }
 </script>
-<script src="js/script.js?v=14"></script>
-<script src="js/transport.js?v=14"></script>
-<script src="js/online.js?v=14"></script>
+<script src="js/script.js?v=15"></script>
+<script src="js/editor.js?v=1"></script>
+<script src="js/transport.js?v=15"></script>
+<script src="js/online.js?v=15"></script>
 </body>
 </html>

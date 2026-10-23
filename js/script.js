@@ -1642,6 +1642,7 @@ showLoadFeedback('No se cargó: ' + msg + ' Se mantiene la lista actual.', 'erro
 return;
 }
 applyCategories(result.categories);
+if (typeof Editor !== "undefined") Editor.guardar();
 buildArchivoScreen(new Set());
 const nWords = result.categories.reduce((a, c) => a + c.words.length, 0);
 let msg = '✓ Lista cargada — ' + result.categories.length + ' categorías, ' + nWords + ' palabras (solo en este dispositivo)';
@@ -1697,7 +1698,7 @@ return ok;
 loadSeedWords();
 $('btn-restore-seed').addEventListener('click', () => {
 if (!confirm('¿Restaurar la lista de serie? Se perderán los cambios hechos o cargados en esta sesión.')) return;
-if (loadSeedWords()) { buildArchivoScreen(new Set()); showLoadFeedback('✓ Lista de serie restaurada', 'ok'); vibrate(30); }
+if (loadSeedWords()) { if (typeof Editor !== "undefined") Editor.olvidar(); const eb = $('archivo-lista-estado'); if (eb) eb.textContent = ''; buildArchivoScreen(new Set()); showLoadFeedback('✓ Lista de serie restaurada', 'ok'); vibrate(30); }
 });
 
 // ===== Pantalla de inicio: un solo móvil u online =====
@@ -1716,6 +1717,7 @@ const key = w.toLowerCase().replace(/\s+/g, ' ');
 if (cat.words.some(x => x.toLowerCase().replace(/\s+/g, ' ') === key)) return false;
 cat.words.push(w); state.selectedCats.add(cat.id);
 buildCatGrid(); updateAllBtn();
+if (typeof Editor !== 'undefined') Editor.guardar();
 return true;
 }
 
