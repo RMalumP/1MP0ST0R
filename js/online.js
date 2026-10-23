@@ -314,6 +314,7 @@ function onEstado(st) {
 function onRol(m) {
   if (m.vacio) { O.myRole = null; O.revealed = false; renderCard(); return; }
   const antes = O.myRole; O.myRole = m;
+  try { [m.card].concat((parse(m.g, []) || []).map(x => x && x.card)).forEach(c => (parse(c, []) || []).forEach(it => { if (it && it.k === 'img') precargarImagen(String(it.w || ''), String(it.c || ''), true); })); } catch (e) { /* la precarga es opcional */ }
   if (!antes || antes.round !== m.round) { O.revealed = false; O.seatView = 0; }
   renderCard(); renderGame();
   if (O.pub.phase === 'playing' || O.pub.phase === 'ended') route();

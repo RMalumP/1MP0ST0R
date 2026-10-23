@@ -1,14 +1,16 @@
 // sw.js — Service worker: permite instalar el juego y usar el modo local sin conexión.
 // Los archivos propios se piden primero a la red (así siempre ves la última versión) y, si no hay conexión, salen de la caché.
-// Firebase, PeerJS, Wikipedia y el Worker de Cloudflare no se tocan: van siempre directos a la red.
+// Las miniaturas de Wikimedia se guardan en su propia caché (las ya vistas salen al instante y sin conexión).
+// Firebase, PeerJS, la API de Wikipedia y el Worker de Cloudflare no se tocan: van siempre directos a la red.
 const CACHE = 'impostor-v1';
+const IMG_CACHE = 'impostor-img-v1', IMG_MAX = 300;
 const CORE = ['./', 'index.html', 'css/styles.css', 'js/script.js', 'js/misiones.js', 'js/online.js', 'js/editor.js', 'js/stats.js', 'js/compartir.js', 'js/transport.js', 'favicon.svg', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(CORE.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== IMG_CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -21,6 +23,11 @@ self.addEventListener('fetch', e => {
         return res;
       }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || (req.mode === 'navigate' ? caches.match('index.html') : Response.error())))
     );
+  } else if (url.hostname === 'upload.wikimedia.org' && req.destination === 'image') {
+    e.respondWith(caches.open(IMG_CACHE).then(c => c.match(req).then(hit => hit || fetch(req).then(res => {
+      if (res && (res.ok || res.type === 'opaque')) c.put(req, res.clone()).then(() => c.keys()).then(ks => { if (ks.length > IMG_MAX) c.delete(ks[0]); }).catch(() => {});
+      return res;
+    }))));
   } else if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
     e.respondWith(caches.open(CACHE).then(c => c.match(req).then(hit => {
       const red = fetch(req).then(res => { if (res && (res.ok || res.type === 'opaque')) c.put(req, res.clone()); return res; }).catch(() => hit);

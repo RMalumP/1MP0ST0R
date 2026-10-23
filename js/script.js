@@ -889,7 +889,7 @@ return cat ? !!cat.noImages : false;
 // ===== Imágenes de las palabras (Wikipedia / Wikimedia Commons) =====
 const IMG_DEBUG = false;            // true = registra en consola cada consulta, la página elegida y el motivo del fallo
 const IMG_TIMEOUT_MS = 4000;        // tiempo máximo de cada petición
-const IMG_CACHE_KEY = 'impostor.imgcache.v1', IMG_CACHE_MAX = 400, IMG_MISS_MS = 120000;
+const IMG_CACHE_KEY = 'impostor.imgcache.v1', IMG_CACHE_MAX = 400, IMG_MISS_MS = 120000, IMG_MISS_NET_MS = 15000;
 // Palabras completas (con límites \b) que impiden mostrar una imagen. Se comparan con el título, la descripción y el nombre del archivo.
 const IMG_BLOCK_RE = /\b(porn|porno|pornograf[ií]a|pornography|sex|sexo|sexual|nude|nudity|naked|desnud[oa]s?|erotic|erotica|er[óo]tic[oa]|xxx|nsfw|genitalia|genitals|vagina|penis|nipple|fetish|hentai|gore|corpse|cad[aá]ver|decapitation|decapitated|torture|tortura|terrorist|terrorista|racist)\b/i;
 function imgLog() { if (IMG_DEBUG) console.debug('[imagen]', ...arguments); }
@@ -938,13 +938,19 @@ Object.keys(_imgCache).forEach(k => { if (_imgCache[k] === src) delete _imgCache
 if (ch) imgStoreSave();
 }
 const imgNorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\([^)]*\)/g, ' ').toLowerCase().replace(/[^a-z0-9ñ]+/g, ' ').trim();
-function wikiFetch(lang, params) {
+let _imgNetErr = 0;   // fallos de red acumulados: distinguen «no hay imagen» de «no pude preguntar»
+function wikiFetch(lang, params, reintento) {
 const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
 const t = setTimeout(() => { if (ctl) ctl.abort(); }, IMG_TIMEOUT_MS);
 const url = 'https://' + lang + '.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages|description|pageprops&ppprop=disambiguation&piprop=thumbnail&pithumbsize=300&pilicense=any&' + params;
 imgLog('consulta', lang, url);
 return fetch(url, ctl ? { signal: ctl.signal } : undefined).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-.then(d => { clearTimeout(t); return d; }).catch(e => { clearTimeout(t); imgLog('fallo de red', lang, e && e.message); return null; });
+.then(d => { clearTimeout(t); return d; })
+.catch(e => {
+clearTimeout(t); imgLog('fallo de red', lang, e && e.message);
+if (!reintento) return new Promise(res => setTimeout(res, 700)).then(() => wikiFetch(lang, params, true));
+_imgNetErr++; return null;
+});
 }
 function pageUsable(p) {
 if (!p || p.missing !== undefined || !p.thumbnail || !p.thumbnail.source) return false;
@@ -996,7 +1002,7 @@ return want.length > 0 && want.every(w => nombre.split(' ').includes(w)) && !IMG
 });
 if (p) imgLog('commons', query, '→', p.title); else imgLog('commons sin coincidencia', query);
 return p ? p.imageinfo[0].thumburl : null;
-}).catch(e => { clearTimeout(t); imgLog('fallo commons', e && e.message); return null; });
+}).catch(e => { clearTimeout(t); _imgNetErr++; imgLog('fallo commons', e && e.message); return null; });
 }
 function searchTitle(lang, query, cleanWord) {
 return wikiFetch(lang, 'generator=search&gsrlimit=5&gsrsearch=' + encodeURIComponent(query)).then(d => {
@@ -1035,24 +1041,52 @@ return firstOf([exactTitle('es', titles), exactTitle('en', titles)])
 .then(src => src || firstOf(['fr', 'de', 'it', 'pt', 'ca'].map(l => exactTitle(l, titles))))
 .then(src => src || firstOf([searchTitle('es', q, cleanWord), searchTitle('en', q, cleanWord), commonsFile(cleanWord, cleanWord)]));
 }
-function fetchWordImage(word, catName, container, online) {
-if (!online && !state.imagesOn) return;
-if (!online && isCatNoPng(catName)) return;
-if (!word || !navigator.onLine) return;
+// Resuelve la URL de la imagen (manual, caché o búsqueda). Sin tocar el DOM: sirve para mostrar y para precargar.
+function resolveWordImage(word, catName) {
 const manual = manualImage(word, catName);
-if (manual) { showImg(container, manual, ''); return; }
+if (manual) return Promise.resolve(manual);
 const key = word.toLowerCase().trim().replace(/\s+/g, ' ');
 const cached = _imgCache[key] || imgStore()[key];
-if (cached) { _imgCache[key] = cached; showImg(container, cached, ''); return; }
-if (_imgMiss[key] && Date.now() - _imgMiss[key] < IMG_MISS_MS) return;
-container.innerHTML = '<div class="word-img-loading">🔍 Buscando imagen...</div>';
-const prom = _imgPending[key] || (_imgPending[key] = findWordImage(word, catName).finally(() => { delete _imgPending[key]; }));
-prom.then(src => {
-if (src) { imgCachePut(key, src); showImg(container, src, word.split('(')[0].trim()); }
-else { _imgMiss[key] = Date.now(); imgLog('sin imagen', word); container.innerHTML = ''; }
+if (cached) { _imgCache[key] = cached; return Promise.resolve(cached); }
+if (_imgMiss[key] && Date.now() < _imgMiss[key]) return Promise.resolve(null);
+const prom = _imgPending[key] || (_imgPending[key] = (() => {
+const errAntes = _imgNetErr;
+return findWordImage(word, catName).then(src => {
+if (src) imgCachePut(key, src);
+else _imgMiss[key] = Date.now() + (_imgNetErr > errAntes ? IMG_MISS_NET_MS : IMG_MISS_MS);   // fallo de red: reintentar pronto
+return src;
+}).finally(() => { delete _imgPending[key]; });
+})());
+return prom;
+}
+function imgPuedeBuscar(word, catName, online) {
+if (!online && !state.imagesOn) return false;
+if (!online && isCatNoPng(catName)) return false;
+return !!word && navigator.onLine !== false;
+}
+function fetchWordImage(word, catName, container, online) {
+if (!imgPuedeBuscar(word, catName, online)) return;
+const cached = _imgCache[word.toLowerCase().trim().replace(/\s+/g, ' ')];
+if (!cached) container.innerHTML = '<div class="word-img-loading">🔍 Buscando imagen...</div>';
+resolveWordImage(word, catName).then(src => {
+if (src) showImg(container, src, word.split('(')[0].trim()); else { imgLog('sin imagen', word); container.innerHTML = ''; }
 }).catch(() => { container.innerHTML = ''; });
 }
-function goToTurn() { showScreen('screen-turns'); renderTurn(); }
+// Precarga: busca la imagen y descarga los bytes antes de que el jugador toque la tarjeta, para que aparezca al instante.
+const _imgPre = {};
+function precargarImagen(word, catName, online) {
+if (!imgPuedeBuscar(word, catName, online) || _imgPre[word]) return;
+_imgPre[word] = 1;
+resolveWordImage(word, catName).then(src => {
+if (src && isTrustedSrc(src) && isSafeImgSrc(src, word)) { const i = new Image(); i.src = src; } else delete _imgPre[word];
+}).catch(() => { delete _imgPre[word]; });
+}
+function precargarRonda() {
+if (state.word) precargarImagen(state.word, state.category);
+if (state.wordB) precargarImagen(state.wordB, state.categoryB);
+(state.words || []).forEach((w, i) => precargarImagen(w, (state.wordCategories && state.wordCategories[i]) || state.category));
+}
+function goToTurn() { showScreen('screen-turns'); renderTurn(); precargarRonda(); }
 function renderTurn() {
 const label = playerNames[state.currentPlayer-1] || ('Jugador ' + state.currentPlayer);
 const hasName = playerNames[state.currentPlayer - 1];
