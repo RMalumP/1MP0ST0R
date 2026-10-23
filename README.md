@@ -12,7 +12,7 @@ Sin npm, sin bundler, sin backend propio. Todo el interfaz y los mensajes están
 ```
 index.html                  Interfaz + lista de palabras de serie (bloque <script id="palabras-json">)
 css/styles.css              Estilos
-js/script.js                Lógica del juego (modo local), lista de palabras, Guardar/Cargar JSON, imágenes de Wikipedia
+js/script.js                Lógica del juego (modo local), lista de palabras, Guardar/Cargar JSON, imágenes (Wikipedia, Commons y, como último recurso, Openverse)
 js/editor.js             Editor de palabras (renombrar, editar palabra y descripción, imágenes, mover, deshacer, guardado en el navegador)
 js/online.js                Modo online: sala, lobby, reparto de roles, eliminaciones, cronómetro, expulsar jugadores
 js/transport.js             Fachada de transporte: elige Firebase o PeerJS automáticamente

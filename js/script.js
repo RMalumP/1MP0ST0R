@@ -900,7 +900,8 @@ return !IMG_BLOCK_RE.test(check);
 function isTrustedSrc(src) {
 return src.startsWith('https://upload.wikimedia.org') ||
 src.startsWith('https://commons.wikimedia.org') ||
-src.startsWith('https://upload.wikipedia.org');
+src.startsWith('https://upload.wikipedia.org') ||
+src.startsWith('https://api.openverse.org/v1/images/');
 }
 function showImg(container, src, alt, retry) {
 if (!isTrustedSrc(src) || !isSafeImgSrc(src, alt)) { container.innerHTML = ''; return; }
@@ -1004,6 +1005,26 @@ if (p) imgLog('commons', query, '→', p.title); else imgLog('commons sin coinci
 return p ? p.imageinfo[0].thumburl : null;
 }).catch(e => { clearTimeout(t); _imgNetErr++; imgLog('fallo commons', e && e.message); return null; });
 }
+// Segunda opción (solo si Wikipedia y Commons no encuentran nada): Openverse, sin clave y con el contenido sensible excluido.
+// Se acepta un resultado cuyo título contenga todas las palabras buscadas, sin marcar como sensible y sin términos bloqueados.
+function openverseImage(query, cleanWord) {
+const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+const t = setTimeout(() => { if (ctl) ctl.abort(); }, IMG_TIMEOUT_MS);
+const url = 'https://api.openverse.org/v1/images/?format=json&mature=false&page_size=10&category=photograph,illustration&q=' + encodeURIComponent(query);
+imgLog('consulta openverse', url);
+return fetch(url, ctl ? { signal: ctl.signal } : undefined).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => {
+clearTimeout(t);
+const want = imgNorm(cleanWord).split(' ').filter(Boolean);
+const r = ((d && d.results) || []).find(x => {
+if (!x || x.mature || !x.thumbnail || !isTrustedSrc(x.thumbnail)) return false;
+const tags = (x.tags || []).map(g => g && g.name).join(' ');
+const tit = imgNorm(x.title);
+return want.length > 0 && want.every(w => tit.split(' ').includes(w)) && !IMG_BLOCK_RE.test((x.title || '') + ' ' + tags);
+});
+if (r) imgLog('openverse', query, '→', r.title); else imgLog('openverse sin coincidencia', query);
+return r ? r.thumbnail : null;
+}).catch(e => { clearTimeout(t); _imgNetErr++; imgLog('fallo openverse', e && e.message); return null; });
+}
 function searchTitle(lang, query, cleanWord) {
 return wikiFetch(lang, 'generator=search&gsrlimit=5&gsrsearch=' + encodeURIComponent(query)).then(d => {
 const pages = d && d.query && d.query.pages; if (!pages) return null;
@@ -1033,13 +1054,14 @@ return firstOf([exactTitle('es', ['Bandera de ' + cleanWord]), exactTitle('en', 
 }
 return findGeneral(cleanWord, ctx);
 }
-// Ronda 1: título exacto en es y en (en paralelo). Ronda 2: otros idiomas. Ronda 3: búsqueda por texto y archivo en Commons.
+// Ronda 1: título exacto en es y en (en paralelo). Ronda 2: otros idiomas. Ronda 3: búsqueda por texto y archivo en Commons. Ronda 4: Openverse.
 function findGeneral(cleanWord, ctx) {
 const titles = variantesTitulo(cleanWord, ctx);
 const q = ctx ? cleanWord + ' ' + ctx : cleanWord;
 return firstOf([exactTitle('es', titles), exactTitle('en', titles)])
 .then(src => src || firstOf(['fr', 'de', 'it', 'pt', 'ca'].map(l => exactTitle(l, titles))))
-.then(src => src || firstOf([searchTitle('es', q, cleanWord), searchTitle('en', q, cleanWord), commonsFile(cleanWord, cleanWord)]));
+.then(src => src || firstOf([searchTitle('es', q, cleanWord), searchTitle('en', q, cleanWord), commonsFile(cleanWord, cleanWord)]))
+.then(src => src || openverseImage(q, cleanWord));
 }
 // Resuelve la URL de la imagen (manual, caché o búsqueda). Sin tocar el DOM: sirve para mostrar y para precargar.
 function resolveWordImage(word, catName) {

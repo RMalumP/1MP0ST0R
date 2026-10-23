@@ -1,6 +1,6 @@
 // sw.js — Service worker: permite instalar el juego y usar el modo local sin conexión.
 // Los archivos propios se piden primero a la red (así siempre ves la última versión) y, si no hay conexión, salen de la caché.
-// Las miniaturas de Wikimedia se guardan en su propia caché (las ya vistas salen al instante y sin conexión).
+// Las miniaturas de Wikimedia y Openverse se guardan en su propia caché (las ya vistas salen al instante y sin conexión).
 // Firebase, PeerJS, la API de Wikipedia y el Worker de Cloudflare no se tocan: van siempre directos a la red.
 const CACHE = 'impostor-v1';
 const IMG_CACHE = 'impostor-img-v1', IMG_MAX = 300;
@@ -23,7 +23,7 @@ self.addEventListener('fetch', e => {
         return res;
       }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || (req.mode === 'navigate' ? caches.match('index.html') : Response.error())))
     );
-  } else if (url.hostname === 'upload.wikimedia.org' && req.destination === 'image') {
+  } else if ((url.hostname === 'upload.wikimedia.org' || url.hostname === 'api.openverse.org') && req.destination === 'image') {
     e.respondWith(caches.open(IMG_CACHE).then(c => c.match(req).then(hit => hit || fetch(req).then(res => {
       if (res && (res.ok || res.type === 'opaque')) c.put(req, res.clone()).then(() => c.keys()).then(ks => { if (ks.length > IMG_MAX) c.delete(ks[0]); }).catch(() => {});
       return res;
