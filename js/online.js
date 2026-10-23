@@ -117,6 +117,8 @@ function limpiar() {
   $('screen-setup').classList.remove('online-host');
   if (O.savedNames) { playerNames = O.savedNames.slice(); setPlayers(playerNames.length); O.savedNames = null; }
   updateModeUI();
+  renderHostPanel(); // oculta el panel de la sala (si no, «Un solo móvil» lo seguía mostrando)
+  const tb = $('on-takeover-banner'); if (tb) tb.style.display = 'none';
   const b = $('on-resume-banner'); if (b) b.style.display = 'none';
   go('screen-home');
 }
