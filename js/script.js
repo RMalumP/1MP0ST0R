@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, hintStaged: false, wordB: null, categoryB: null, traitorOn: false, traitor: null, missionOn: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, quickOn: false, quickSecs: 60, hintStaged: false, wordB: null, categoryB: null, traitorOn: false, traitor: null, missionOn: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -544,6 +544,12 @@ try { if (localStorage.getItem('impostor.sound') === '0') { state.soundOn = fals
 bindSwitch('sw-sound', 'soundOn', on => { try { localStorage.setItem('impostor.sound', on ? '1' : '0'); } catch (e) { /* nada */ } if (on) sfx('reveal'); });
 bindSwitch('sw-vote', 'voteOn');
 bindSwitch('sw-traitor', 'traitorOn');
+bindSwitch('sw-quick', 'quickOn', () => updateQuickUI());
+function updateQuickUI() {
+$('quick-secs-row').style.display = state.quickOn ? 'block' : 'none';
+document.querySelectorAll('[data-qs]').forEach(b => b.classList.toggle('selected', Number(b.dataset.qs) === state.quickSecs));
+}
+document.querySelectorAll('[data-qs]').forEach(b => b.addEventListener('click', () => { state.quickSecs = Number(b.dataset.qs); updateQuickUI(); vibrate(10); }));
 bindSwitch('sw-staged', 'hintStaged', () => updateHintUI());
 bindSwitch('sw-mission', 'missionOn', () => updateMissionUI());
 function updateMissionUI() {
@@ -1272,11 +1278,12 @@ startingPlayer = Math.floor(Math.random() * state.numPlayers) + 1;
 }
 const startingName = playerNames[startingPlayer - 1] || ('Jugador ' + startingPlayer);
 showStartingPlayerDialog(startingName);
-if (state.timerOn) {
+if (state.timerOn || state.quickOn) {
 $('timer-area').style.display = 'block'; $('no-timer-area').style.display = 'none';
-state.timerRemaining = state.timerSeconds; state.timerRunning = false;
+state.timerRemaining = state.quickOn ? state.quickSecs : state.timerSeconds; state.timerRunning = false;
 if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
 renderTimer(); $('btn-timer-start').textContent = 'Iniciar';
+if (state.quickOn) startTimer(); // modo rápido: el cronómetro arranca solo
 } else { $('timer-area').style.display = 'none'; $('no-timer-area').style.display = 'block'; }
 }
 function fmtTime(s) { if (s<0)s=0; return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }

@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, stageT: null, stageShown: -1, bg: null, bgPref: true, quickPending: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, stageT: null, stageShown: -1, bg: null, bgPref: true, quickPending: false, quickNext: false, quickTimer: null, quickKey: '', quickResolving: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!state.voteOn, hm: state.hintMode, hs: state.hintStaged ? 1 : 0, tr: state.traitorOn ? 1 : 0, mi: state.missionOn ? state.missionWho : '', ik: state.impKnows ? 1 : 0, kc: state.keyCat };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!(state.timerOn || state.quickOn), secs: state.quickOn ? state.quickSecs : state.timerSeconds, qk: state.quickOn ? state.quickSecs : 0, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!(state.voteOn || state.quickOn), hm: state.hintMode, hs: state.hintStaged ? 1 : 0, tr: state.traitorOn ? 1 : 0, mi: state.missionOn ? state.missionWho : '', ik: state.impKnows ? 1 : 0, kc: state.keyCat };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -380,6 +380,7 @@ function settingsLines() {
   const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : s.alc === 'rot' ? 'sin repetir' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? (s.hs ? 'sí, escalonada' : 'sí (' + ({ cat: 'categoría', inicial: 'inicial y letras', desc: 'descripción' }[s.hm] || 'categoría') + ')') : 'no')];
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
   if (s.mode === 'escondite') l.push('Impostores: ' + (s.ik === 0 ? 'no conocen la palabra de la gente' : 'conocen la palabra de la gente') + (s.custom ? '' : ' · su palabra es de ' + (s.kc === 'misma' ? 'la misma categoría' : 'otra categoría')));
+  if (s.qk) l.push('Modo rápido: ' + s.qk + ' s por ronda');
   if (s.tr) l.push('Traidor: sí');
   if (s.mi) l.push('Misiones secretas: ' + ({ todos: 'todos', civiles: 'solo civiles', impostores: 'solo impostores' }[s.mi] || 'sí'));
   l.push('Votación integrada: ' + (s.vote ? 'sí' : 'no'));
@@ -525,7 +526,9 @@ function hostComprobarListos() {
 function hostComenzarTodos(auto) {
   if (!O.host || !esperando()) return;
   O.starting = true;
-  Transport.enviar('todos', { tipo: 'estado', waiting: false }).then(() => { if (!auto) vibrate(25); }).catch(errorEnvio).finally(() => { O.starting = false; });
+  const ini = { tipo: 'estado', waiting: false }, qk = ajustes().qk;
+  if (qk) ini.timer = { running: true, remaining: qk, at: Transport.ahora() }; // modo rápido: el cronómetro arranca solo
+  Transport.enviar('todos', ini).then(() => { if (!auto) vibrate(25); }).catch(errorEnvio).finally(() => { O.starting = false; });
 }
 function renderCard() {
   const card = $('on-reveal-card'), shown = $('on-reveal-shown'); if (!card) return;
@@ -681,6 +684,33 @@ function chequearEtapa() {
 function tickTimer() {
   if (O.active && O.cur === 'screen-online-game') { renderTimer(); chequearEtapa(); }
   if (O.active && ++O.mantN % 16 === 0) mantenimiento();
+  if (O.active && O.host) hostAutoRapido();
+}
+// Modo rápido (solo el anfitrión): al acabar el tiempo abre la votación, la cierra a los 30 s, elimina al más votado y arranca otra ronda de tiempo;
+// si acaba la partida, empieza otra a los 12 s.
+function hostAutoRapido() {
+  const qk = ajustes().qk; if (!qk) return;
+  if (O.pub.result) {
+    if (!O.quickNext) { O.quickNext = true; aviso('Nueva ronda en 12 segundos…', 6000); O.quickTimer = setTimeout(() => { O.quickNext = false; if (O.active && O.host && O.pub.result) hostRondaRapida(); }, 12000); }
+    return;
+  }
+  if (O.quickNext) { O.quickNext = false; clearTimeout(O.quickTimer); }
+  if (O.pub.phase !== 'playing' || esperando()) return;
+  const v = voto(), t = O.pub.timer;
+  if (!v) {
+    const key = O.pub.round + ':' + (t && t.at);
+    if (t && t.running && timerMs() <= 0 && O.quickKey !== key) { O.quickKey = key; hostIniciarVoto(); }
+  } else if (v.open) {
+    if (Date.now() - v.id > 30000) hostCerrarVoto();
+  } else if (!O.quickResolving) {
+    O.quickResolving = true;
+    setTimeout(() => {
+      O.quickResolving = false;
+      const w = voto(); if (!O.host || !w || w.open || !ajustes().qk) return;
+      if (w.win) hostEliminar(w.win); else Transport.enviar('todos', { tipo: 'estado', vote: null }).catch(errorEnvio);
+      setTimeout(() => { if (O.host && !O.pub.result && O.pub.phase === 'playing') escribirTimer(true, ajustes().qk || 60); }, 600);
+    }, 4000);
+  }
 }
 // Cada ~4 s: el anfitrión quita del lobby a quien lleva 10 min sin conexión; los jugadores ofrecen tomar la sala si el anfitrión desaparece.
 // Tolerancia de 10 minutos: un anfitrión con la pantalla bloqueada (pestaña en segundo plano) no pierde la sala ni el papel.
@@ -948,7 +978,7 @@ function dealRound() {
   const estado = {
     phase: 'playing', round: ronda, settings: JSON.stringify(settingsObj()), starting: nombreDe(O.order[ini - 1]).slice(0, 24),
     alcalde: null, alcaldeName: null, alcaldeWords: null, eliminated: '[]', popup: null, result: null, waiting: true, ready: '[]', vote: null, summary: null,
-    timer: state.timerOn ? { running: false, remaining: state.timerSeconds, at: Transport.ahora() } : null
+    timer: (state.timerOn || state.quickOn) ? { running: false, remaining: state.quickOn ? state.quickSecs : state.timerSeconds, at: Transport.ahora() } : null
   };
   Transport.enviar('todos', { tipo: 'reparto', roles, estado }).catch(e => { O.hostRoles = {}; errorEnvio(e); });
 }
