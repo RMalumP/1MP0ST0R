@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: false, timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -1003,7 +1003,7 @@ if (state.hintOn && state.alcaldeHints[0]) {
 const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${state.alcaldeHints[0]}`; shown.appendChild(h);
 }
 }
-if (state.category && state.category !== 'Personalizada') { const catP=document.createElement('div');catP.className='hint-line';catP.textContent='Categoría · '+state.category;shown.appendChild(catP); }
+if (state.hintOn && state.category && state.category !== 'Personalizada') { const catP=document.createElement('div');catP.className='hint-line';catP.textContent='Categoría · '+state.category;shown.appendChild(catP); }
 if (isAlcalde) {
 const s = document.createElement('div'); s.className = 'impostor-sub'; s.textContent = 'Tienes voto de gracia'; shown.appendChild(s);
 }
@@ -1017,7 +1017,7 @@ const s = document.createElement('div'); s.className = 'impostor-sub'; s.textCon
 if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${state.category}`; shown.appendChild(h); }
 } else {
 renderWord(state.word, shown);
-const catLine=document.createElement('div');catLine.className='hint-line';catLine.textContent='Categoría · '+state.category;shown.appendChild(catLine);
+if (state.hintOn) { const catLine=document.createElement('div');catLine.className='hint-line';catLine.textContent='Categoría · '+state.category;shown.appendChild(catLine); }
 const imgN=document.createElement('div');imgN.className='word-img-wrap';shown.appendChild(imgN);fetchWordImage(state.word,state.category,imgN);
 }
 } else if (state.gameMode === 'multiple') {
@@ -1029,7 +1029,7 @@ if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint
 const wIdx = state.playerWordIdx[state.currentPlayer] ?? 0;
 renderWord(state.words[wIdx], shown);
 const catForWord=state.wordCategories[wIdx]||state.category;
-const catLineM=document.createElement('div');catLineM.className='hint-line';catLineM.textContent='Categoría · '+catForWord;shown.appendChild(catLineM);
+if (state.hintOn) { const catLineM=document.createElement('div');catLineM.className='hint-line';catLineM.textContent='Categoría · '+catForWord;shown.appendChild(catLineM); }
 const imgM=document.createElement('div');imgM.className='word-img-wrap';shown.appendChild(imgM);fetchWordImage(state.words[wIdx],catForWord,imgM);
 if (state.multiWordCount > 2) {
 const g = document.createElement('div'); g.className = 'impostor-sub'; g.style.marginTop='8px'; g.style.color='var(--text-faded)'; g.textContent = `Grupo ${wIdx + 1} de ${state.multiWordCount}`; shown.appendChild(g);
@@ -1049,8 +1049,7 @@ box.appendChild(lbl); box.appendChild(kw); shown.appendChild(box);
 if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${state.category}`; shown.appendChild(h); }
 } else {
 renderWord(state.word, shown);
-const catLineE=document.createElement('div');catLineE.className='hint-line';catLineE.textContent='Categoría · '+state.category;shown.appendChild(catLineE);
-if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${state.category}`; shown.appendChild(h); }
+if (state.hintOn) { const catLineE=document.createElement('div');catLineE.className='hint-line';catLineE.textContent='Categoría · '+state.category;shown.appendChild(catLineE); }
 const imgE=document.createElement('div');imgE.className='word-img-wrap';shown.appendChild(imgE);fetchWordImage(state.word,state.category,imgE);
 }
 }

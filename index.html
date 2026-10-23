@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=9">
+<link rel="stylesheet" href="css/styles.css?v=10">
 </head>
 <body>
 <div class="app">
@@ -47,9 +47,13 @@
   <div class="screen" id="screen-setup">
     <button class="btn-back local-only" id="btn-setup-home" style="margin-bottom:12px;">‹ Inicio</button>
     <div id="online-host-panel" class="section on-host-panel" style="display:none;">
-      <div class="section-title">🌐 Sala online: <span id="on-host-room"></span> <span class="on-chip" id="on-host-transport"></span></div>
+      <div class="section-title">🌐 Sala online: <span id="on-host-room"></span> <span class="on-chip" id="on-host-transport" style="display:none;"></span></div>
       <div class="on-warn" id="on-host-warn" style="display:none;"></div>
       <div class="on-msg" id="on-host-msg"></div>
+      <div class="toggle-row" style="margin-bottom:6px;">
+        <div class="toggle-label">🗳 Votación integrada<small>Cada jugador vota al impostor desde su móvil</small></div>
+        <div class="switch on" id="sw-vote"></div>
+      </div>
       <div id="on-host-players" class="on-players"></div>
       <div id="on-proposals" class="on-players"></div>
       <button class="btn-secondary" id="on-btn-share">📨 Compartir sala</button>
@@ -175,10 +179,7 @@
             <div class="toggle-label">Sonido<small>Efectos al revelar roles, eliminar y ganar</small></div>
             <div class="switch on" id="sw-sound"></div>
           </div>
-          <div class="toggle-row on-host-only">
-            <div class="toggle-label">Votación integrada<small>Online: cada jugador vota desde su móvil</small></div>
-            <div class="switch" id="sw-vote"></div>
-          </div>
+
         </div>
       </div>
     </div>
@@ -305,7 +306,7 @@
   <!-- ===== ONLINE: LOBBY / ESPERA (jugadores) ===== -->
   <div class="screen" id="screen-online-lobby">
     <div class="section">
-      <div class="section-title">Sala: <span id="on-lobby-room"></span> <span class="on-chip" id="on-lobby-transport"></span></div>
+      <div class="section-title">Sala: <span id="on-lobby-room"></span> <span class="on-chip" id="on-lobby-transport" style="display:none;"></span></div>
       <div class="on-msg" id="on-lobby-msg"></div>
       <div id="on-lobby-players" class="on-players"></div>
     </div>
@@ -5083,8 +5084,8 @@
   ]
 }
 </script>
-<script src="js/script.js?v=9"></script>
-<script src="js/transport.js?v=9"></script>
-<script src="js/online.js?v=9"></script>
+<script src="js/script.js?v=10"></script>
+<script src="js/transport.js?v=10"></script>
+<script src="js/online.js?v=10"></script>
 </body>
 </html>

@@ -100,7 +100,7 @@ function entrarEnSala(res, roomName, name) {
     publicarAjustes(true);
   }
   O.tick = setInterval(tickTimer, 250);
-  if (O.avisos.length) aviso(O.avisos.join(' '), 9000);
+  if (O.avisos.length) console.warn('Avisos de conexión:', O.avisos.join(' '));
   const e = O.early; O.early = { jug: null, estado: null, rol: null };
   if (e.jug) onJugadores(e.jug);
   if (e.estado) onMsg(e.estado);
@@ -302,9 +302,9 @@ function renderTodo() { renderHostPanel(); renderLobby(); renderGame(); }
 
 // ---------- jugadores: chips, lobby y panel del anfitrión ----------
 function chip(p, ctrl) {
-  const d = el('div', 'on-player');
+  const d = el('div', 'on-player' + (p.guest ? ' on-guest' : ''));
   d.appendChild(el('span', 'on-dot ' + (p.conectado ? 'on' : 'off')));
-  d.appendChild(el('span', 'on-pname', p.nombre + (p.guest ? ' 👥' : '') + (p.esAnfitrion ? ' 👑' : '') + (p.yo ? ' (tú)' : '')));
+  d.appendChild(el('span', 'on-pname', (p.guest ? '↳ ' : '') + p.nombre + (p.guest ? ' 👥' : '') + (p.esAnfitrion ? ' 👑' : '') + (p.yo ? ' (tú)' : '')));
   if (!p.conectado) d.appendChild(el('span', 'on-off', 'sin conexión'));
   if (ctrl) {
     const btn = (txt, title, fn, extraCls) => { const b = el('button', 'on-kick' + (extraCls || ''), txt); b.type = 'button'; b.title = title; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); d.appendChild(b); };
@@ -332,7 +332,7 @@ function renderHostPanel() {
   const w = $('on-host-warn');
   if (O.transporte === 'peer') {
     w.style.display = 'block';
-    w.textContent = '⚠️ Modo de respaldo (PeerJS): este móvil hace de servidor de la sala. No cierres ni recargues esta pestaña y no dejes que se bloquee la pantalla: si se pierde, los demás se quedan sin conexión.' + (O.avisos.length ? ' ' + O.avisos.join(' ') : '');
+    w.textContent = '⚠️ Este móvil hace de servidor de la sala: no cierres ni recargues esta pestaña y no dejes que se bloquee la pantalla; si se pierde, los demás se quedan sin conexión.';
   } else { w.style.display = 'none'; w.textContent = ''; }
   const list = $('on-host-players'); list.innerHTML = '';
   const lobby = (O.pub.phase || 'lobby') === 'lobby';
@@ -559,12 +559,12 @@ function renderGamePlayers() {
   box.innerHTML = '';
   // El anfitrión ve también a quien se fue a media ronda (cuenta para la victoria); el resto ve la sala actual.
   const filas = O.host && Object.keys(O.hostRoles).length
-    ? Object.keys(O.hostRoles).map(id => { const p = seats().find(x => x.id === id); return { id, nombre: nombreDe(id), conectado: p ? p.conectado : false, fuera: !p }; })
-    : seats().map(p => ({ id: p.id, nombre: p.nombre, conectado: p.conectado, fuera: false }));
+    ? Object.keys(O.hostRoles).map(id => { const p = seats().find(x => x.id === id); return { id, nombre: nombreDe(id), conectado: p ? p.conectado : false, fuera: !p, guest: id.startsWith('g:') }; })
+    : seats().map(p => ({ id: p.id, nombre: p.nombre, conectado: p.conectado, fuera: false, guest: !!p.guest }));
   filas.forEach(f => {
     const elim = O.elim.has(f.id);
-    const row = el('div', 'game-player-row' + (elim ? ' eliminated' : ''));
-    const nm = el('div', 'game-player-name'); nm.appendChild(el('span', 'on-dot ' + (f.conectado ? 'on' : 'off'))); nm.appendChild(document.createTextNode(' ' + f.nombre + (f.fuera ? ' (se fue)' : '')));
+    const row = el('div', 'game-player-row' + (elim ? ' eliminated' : '') + (f.guest ? ' on-guest' : ''));
+    const nm = el('div', 'game-player-name'); nm.appendChild(el('span', 'on-dot ' + (f.conectado ? 'on' : 'off'))); nm.appendChild(document.createTextNode(' ' + (f.guest ? '↳ ' : '') + f.nombre + (f.fuera ? ' (se fue)' : '')));
     row.appendChild(nm);
     if (O.host) {
       const btn = el('button', 'btn-ver-rol' + (elim ? ' eliminated' : ''), elim ? 'Eliminado' : 'Ver rol');
@@ -803,7 +803,7 @@ function buildCardView(p) {
         it.push({ k: 'wtxt', t: state.word || '—' });
         if (state.hintOn && hints[0]) hint('Pista · ' + hints[0]);
       }
-      if (state.category && state.category !== 'Personalizada') hint('Categoría · ' + state.category);
+      if (state.hintOn && state.category && state.category !== 'Personalizada') hint('Categoría · ' + state.category);
       if (alc) sub('Tienes voto de gracia');
     }
     return it;
@@ -813,7 +813,7 @@ function buildCardView(p) {
     else {
       const w = state.playerWordIdx[p] !== undefined ? state.playerWordIdx[p] : 0;
       const cat = (state.wordCategories && state.wordCategories[w]) || state.category;
-      it.push({ k: 'word', t: state.words[w] || '—' }); hint('Categoría · ' + cat); img(state.words[w], cat);
+      it.push({ k: 'word', t: state.words[w] || '—' }); if (state.hintOn) hint('Categoría · ' + cat); img(state.words[w], cat);
       if (state.multiWordCount > 2) sub('Grupo ' + (w + 1) + ' de ' + state.multiWordCount, true);
     }
   } else if (mode === 'escondite') {
@@ -823,12 +823,11 @@ function buildCardView(p) {
       if (state.esconditeKey) it.push({ k: 'key', l: 'Clave secreta', t: state.esconditeKey });
       if (state.hintOn) hint('Pista · ' + state.category);
     } else {
-      it.push({ k: 'word', t: state.word }); hint('Categoría · ' + state.category);
-      if (state.hintOn) hint('Pista · ' + state.category);
+      it.push({ k: 'word', t: state.word }); if (state.hintOn) hint('Categoría · ' + state.category);
       img(state.word, state.category);
     }
   } else if (isImp) { imp(); sub('No reveles tu identidad'); if (state.hintOn) hint('Pista · ' + state.category); }
-  else { it.push({ k: 'word', t: state.word }); hint('Categoría · ' + state.category); img(state.word, state.category); }
+  else { it.push({ k: 'word', t: state.word }); if (state.hintOn) hint('Categoría · ' + state.category); img(state.word, state.category); }
   return it;
 }
 function resText(i) {

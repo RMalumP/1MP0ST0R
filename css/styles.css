@@ -48,3 +48,6 @@
 .victory-emoji{animation:popIn .5s ease}
 @media (prefers-reduced-motion:reduce){.reveal-card.revealed .reveal-shown,.rol-card,.victory-emoji{animation:none}}
 .pw-weak{color:var(--accent)}.pw-mid{color:var(--gold)}.pw-ok{color:var(--green)}
+
+.on-guest{margin-left:22px;border-left:3px solid var(--blue);border-top-left-radius:4px;border-bottom-left-radius:4px}
+.game-player-row.on-guest{padding-left:10px}

@@ -19,7 +19,7 @@
 const Transport = (function () {
   const T_PROBE = 5000;    // ms máx. de la prueba de Firebase del anfitrión
   const PEER_DELAY = 800;  // ms de ventaja de Firebase al unirse, antes de lanzar también PeerJS
-  const ETIQUETAS = { firebase: '🔥 Firebase', peer: '🔗 PeerJS (respaldo)' };
+  const ETIQUETAS = { firebase: '', peer: '' };
   const cbs = { msg: [], jug: [], con: [] };
   const cargados = {};
   let activo = null; // { nombre, impl }
@@ -62,7 +62,7 @@ const Transport = (function () {
     const es = [eFb, ePeer].filter(Boolean);
     const def = es.find(e => DEFINITIVOS.includes(e.code)); if (def) return def;
     if (es.length && es.every(e => e.code === 'sala-no-encontrada')) return errApp('sala-no-encontrada', 'Sala no encontrada o contraseña incorrecta.');
-    const det = [detalle('Firebase', eFb), detalle('PeerJS', ePeer)].filter(Boolean).join(' · ');
+    const det = [detalle('Conexión principal', eFb), detalle('Conexión de respaldo', ePeer)].filter(Boolean).join(' · ');
     if (accion === 'crear') {
       return errApp('sin-transporte', 'No se pudo crear la sala. Posibles causas: no tienes conexión a internet; Firebase no está bien configurado o este dominio no está autorizado; tu red bloquea las conexiones directas del modo de respaldo. Detalle técnico → ' + det);
     }
