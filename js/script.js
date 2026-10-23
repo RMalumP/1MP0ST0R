@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, traitorOn: false, traitor: null, missionOn: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, hintStaged: false, traitorOn: false, traitor: null, missionOn: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -98,12 +98,13 @@ if (state.traitor === p && !shown.querySelector('.traitor-note')) { const n = do
 const m = state.missions && state.missions[p];
 if (m && !shown.querySelector('.mission-note')) { const n = document.createElement('div'); n.className = 'mission-note'; n.textContent = '📋 Misión secreta: ' + m; shown.appendChild(n); }
 }
-function pistaTexto(word, cat) {
+function pistaTexto(word, cat, modo) {
+modo = modo || state.hintMode;
 const m = String(word || '').match(/^(.*?)\s*\((.+)\)\s*$/);
 const limpia = (m ? m[1] : String(word || '')).trim(), desc = m ? m[2].trim() : '';
 const letras = limpia.replace(/[^A-Za-zÀ-ÿ0-9]/g, '').length, palabras = limpia.split(/\s+/).filter(Boolean).length;
-if (state.hintMode === 'desc' && desc) return desc;
-if ((state.hintMode === 'inicial' || state.hintMode === 'desc') && limpia) return cat + ' · empieza por «' + limpia.charAt(0).toUpperCase() + '» · ' + (palabras > 1 ? palabras + ' palabras, ' : '') + letras + ' letras';
+if (modo === 'desc' && desc) return desc;
+if ((modo === 'inicial' || modo === 'desc') && limpia) return cat + ' · empieza por «' + limpia.charAt(0).toUpperCase() + '» · ' + (palabras > 1 ? palabras + ' palabras, ' : '') + letras + ' letras';
 return cat;
 }
 function vibrate(ms) { if (state.vibrateOn && navigator.vibrate) { try { navigator.vibrate(ms); } catch(e){} } }
@@ -496,7 +497,7 @@ if (onChange) onChange(state[key]);
 }
 bindSwitch('sw-hint', 'hintOn', () => updateHintUI());
 function updateHintUI() {
-$('hint-mode-row').style.display = state.hintOn ? 'block' : 'none';
+$('hint-mode-row').style.display = state.hintOn && !state.hintStaged ? 'block' : 'none';
 document.querySelectorAll('[data-hm]').forEach(b => b.classList.toggle('selected', b.dataset.hm === state.hintMode));
 }
 document.querySelectorAll('[data-hm]').forEach(b => b.addEventListener('click', () => { state.hintMode = b.dataset.hm; updateHintUI(); vibrate(10); }));
@@ -506,6 +507,7 @@ try { if (localStorage.getItem('impostor.sound') === '0') { state.soundOn = fals
 bindSwitch('sw-sound', 'soundOn', on => { try { localStorage.setItem('impostor.sound', on ? '1' : '0'); } catch (e) { /* nada */ } if (on) sfx('reveal'); });
 bindSwitch('sw-vote', 'voteOn');
 bindSwitch('sw-traitor', 'traitorOn');
+bindSwitch('sw-staged', 'hintStaged', () => updateHintUI());
 bindSwitch('sw-mission', 'missionOn', () => updateMissionUI());
 function updateMissionUI() {
 $('mission-who-row').style.display = state.missionOn ? 'block' : 'none';

@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, bg: null, bgPref: true, quickPending: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, stageT: null, stageShown: -1, bg: null, bgPref: true, quickPending: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!state.voteOn, hm: state.hintMode, tr: state.traitorOn ? 1 : 0, mi: state.missionOn ? state.missionWho : '', ik: state.impKnows ? 1 : 0, kc: state.keyCat };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!state.voteOn, hm: state.hintMode, hs: state.hintStaged ? 1 : 0, tr: state.traitorOn ? 1 : 0, mi: state.missionOn ? state.missionWho : '', ik: state.impKnows ? 1 : 0, kc: state.keyCat };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -284,6 +284,7 @@ function onConexion(c) {
 }
 function onEstado(st) {
   O.pub = st;
+  if (st.phase === 'playing' && st.waiting !== true && (!O.stageT || O.stageT.round !== st.round)) { O.stageT = { round: st.round, t: Date.now() }; O.stageShown = -1; }
   if (O.host && (st.phase || 'lobby') === 'lobby') syncHostPlayers();
   if (st.phase !== 'alcalde') O.sentWords = false;
   O.elim = new Set(parse(st.eliminated, []));
@@ -376,7 +377,7 @@ function renderHostPanel() {
 }
 function settingsLines() {
   const s = ajustes(); if (!s.mode) return ['Esperando los ajustes del anfitrión…'];
-  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : s.alc === 'rot' ? 'sin repetir' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí (' + ({ cat: 'categoría', inicial: 'inicial y letras', desc: 'descripción' }[s.hm] || 'categoría') + ')' : 'no')];
+  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : s.alc === 'rot' ? 'sin repetir' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? (s.hs ? 'sí, escalonada' : 'sí (' + ({ cat: 'categoría', inicial: 'inicial y letras', desc: 'descripción' }[s.hm] || 'categoría') + ')') : 'no')];
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
   if (s.mode === 'escondite') l.push('Impostores: ' + (s.ik === 0 ? 'no conocen la palabra de la gente' : 'conocen la palabra de la gente') + (s.custom ? '' : ' · su palabra es de ' + (s.kc === 'misma' ? 'la misma categoría' : 'otra categoría')));
   if (s.tr) l.push('Traidor: sí');
@@ -531,10 +532,10 @@ function renderCard() {
   const ver = !!(O.revealed && O.myRole);
   const vista = vistaActual();
   card.classList.toggle('revealed', ver);
-  $('on-tap-text').textContent = O.myRole ? (vista.compartido ? 'Toca para ver el rol de ' + vista.nombre : 'Toca para ver tu rol') : 'Esperando tu rol…';
+  $('on-tap-text').textContent = O.myRole ? (vista.compartido ? 'Toca para ver el rol de ' + vista.nombre : 'Toca para ver tu rol') + (O.stageShown > 0 && !O.revealed && String(O.myRole.card).indexOf('hintstages') >= 0 ? ' · 💡 hay más pista' : '') : 'Esperando tu rol…';
   const pass = $('on-btn-pass');
   if (pass) { pass.style.display = vista.compartido ? 'block' : 'none'; pass.textContent = 'Pasar el móvil a ' + vista.otro + ' ➜'; }
-  const sig = ver ? O.myRole.round + '|' + vista.idx + '|' + (O.decoyDone[claveSenuelo()] ? 1 : 0) + '|' + vista.card : '';
+  const sig = ver ? O.myRole.round + '|' + vista.idx + '|' + (O.decoyDone[claveSenuelo()] ? 1 : 0) + '|' + etapaPista() + '|' + vista.card : '';
   if (sig === O.cardSig && sig !== '') return; // sin cambios: no se toca (así no se borra la clave que se está escribiendo)
   O.cardSig = sig;
   shown.innerHTML = '';
@@ -569,6 +570,7 @@ function renderCardView(items, box) {
       case 'key': { const k = el('div', 'secret-key-box'); k.appendChild(el('div', 'secret-key-label', it.l || 'Clave secreta')); k.appendChild(el('div', 'secret-key-word', t)); box.appendChild(k); break; }
       case 'img': { const w = el('div', 'word-img-wrap'); box.appendChild(w); fetchWordImage(String(it.w || ''), String(it.c || ''), w, true); break; }
       case 'keyinput': box.appendChild(crearEntradaClave()); break;
+      case 'hintstages': { const e = etapaPista(); (Array.isArray(it.l) ? it.l : []).slice(0, e + 1).forEach((x, i) => box.appendChild(el('div', 'hint-line', (e > 0 ? 'Pista ' + (i + 1) + ' · ' : 'Pista · ') + String(x).slice(0, 200)))); break; }
       case 'mision': box.appendChild(el('div', 'mission-note', '📋 Misión secreta: ' + t)); break;
       case 'traidor': box.appendChild(el('div', 'traitor-note', '🕶 Eres el Traidor: ganas si ganan los impostores. Tú no sabes quiénes son.')); break;
       default: break;
@@ -665,8 +667,21 @@ function timerMs() {
   const ms = t.running ? t.remaining * 1000 - (Transport.ahora() - t.at) : t.remaining * 1000;
   return Math.max(0, ms);
 }
+// Pista escalonada: cada «intervalo» se desbloquea la siguiente pista (un tercio del cronómetro, o 90 s si no hay cronómetro).
+function etapaPista() {
+  if (!O.stageT || O.stageT.round !== O.pub.round) return 0;
+  const s = ajustes(), iv = s.timer ? Math.max(15, Math.floor((s.secs || 180) / 3)) : 90;
+  return Math.min(2, Math.floor((Date.now() - O.stageT.t) / 1000 / iv));
+}
+function chequearEtapa() {
+  if (!O.myRole || String(O.myRole.card).indexOf('hintstages') < 0) return;
+  const e = etapaPista(); if (e === O.stageShown) return;
+  const sube = e > O.stageShown && O.stageShown >= 0; O.stageShown = e;
+  O.cardSig = ''; renderCard();
+  if (sube && !O.revealed) { vibrate([30, 40, 30]); sfx('tick'); }
+}
 function tickTimer() {
-  if (O.active && O.cur === 'screen-online-game') renderTimer();
+  if (O.active && O.cur === 'screen-online-game') { renderTimer(); chequearEtapa(); }
   if (O.active && ++O.mantN % 16 === 0) mantenimiento();
 }
 // Cada ~4 s: el anfitrión quita del lobby a quien lleva 10 min sin conexión; los jugadores ofrecen tomar la sala si el anfitrión desaparece.
@@ -842,6 +857,7 @@ function buildCardView(p) {
   const hint = t => it.push({ k: 'hint', t });
   const img = (w, c) => { if (state.imagesOn && !isCatNoPng(c)) it.push({ k: 'img', w, c }); };
   const hints = state.alcaldeHints || [];
+  const pistaItem = (w, c) => it.push(state.hintStaged ? { k: 'hintstages', l: [pistaTexto(w, c, 'cat'), pistaTexto(w, c, 'inicial'), pistaTexto(w, c, 'desc')] } : { k: 'hint', t: 'Pista · ' + pistaTexto(w, c) });
   if (state.customOn) {
     if (mode === 'escondite' && isImp && p === state.firstImpostor && !state.esconditeKeyWritten) { it.push({ k: 'keyinput' }); return it; }
     if (isImp) {
@@ -881,12 +897,12 @@ function buildCardView(p) {
       imp(); sub(subImpEscondite());
       if (state.impKnows) it.push({ k: 'word', t: state.word });
       if (state.esconditeKey) it.push({ k: 'key', l: 'Clave secreta', t: state.esconditeKey });
-      if (state.hintOn) hint('Pista · ' + pistaTexto(state.word, state.category));
+      if (state.hintOn) pistaItem(state.word, state.category);
     } else {
       it.push({ k: 'word', t: state.word }); hint('Categoría · ' + state.category);
       img(state.word, state.category);
     }
-  } else if (isImp) { imp(); sub('No reveles tu identidad'); if (state.hintOn) hint('Pista · ' + pistaTexto(state.word, state.category)); }
+  } else if (isImp) { imp(); sub('No reveles tu identidad'); if (state.hintOn) pistaItem(state.word, state.category); }
   else { it.push({ k: 'word', t: state.word }); hint('Categoría · ' + state.category); img(state.word, state.category); }
   return it;
 }
