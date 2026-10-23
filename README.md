@@ -41,7 +41,7 @@ Sin los pasos 4–5 el juego funciona igualmente con Firebase; sin 1–3 solo fu
 
 ## Cómo cambiar las palabras
 
-Desde el móvil: Archivo de palabras → «✏️ Editor de palabras» (renombrar, editar palabra y descripción, imagen por palabra o categoría, mover entre categorías, quitar repetidas, ordenar, buscar y deshacer). Los cambios se guardan en el navegador de ese dispositivo.
+Desde el móvil: «Archivo de palabras» (un único editor: renombrar, editar palabra y descripción, imagen por palabra o categoría, mover entre categorías, quitar repetidas, ordenar, buscar y deshacer). Los cambios se guardan en el navegador de ese dispositivo.
 
 
 Se editan en el bloque `palabras-json` de `index.html`. Cada categoría tiene `id`, `nombre`, `bloqueada` (desmarcada por defecto), `sinImagenes` y `palabras` (admiten descripción entre paréntesis: `"Mercurio (planeta)"`).

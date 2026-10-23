@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=15">
+<link rel="stylesheet" href="css/styles.css?v=16">
 </head>
 <body>
 <div class="app">
@@ -402,27 +402,11 @@
     <button class="btn-secondary btn-ghost" id="on-btn-leave">Salir de la sala</button>
   </div>
 
-  <!-- ===== SCREEN 5: EDITOR DE PALABRAS ===== -->
-  <div class="screen" id="screen-editor">
-    <div class="archivo-header">
-      <button class="btn-back" id="editor-back">← Archivo</button>
-      <h2>Editor</h2>
-      <button class="btn-load" id="editor-undo" title="Deshacer el último cambio">↶ Deshacer</button>
-    </div>
-    <div class="on-msg" id="editor-status" style="margin:0 0 6px;"></div>
-    <div class="on-msg" id="editor-msg" style="margin:0 0 6px;color:var(--gold);"></div>
-    <input type="search" id="editor-search" class="field-inp" placeholder="Buscar categoría o palabra…" autocomplete="off" style="margin-bottom:12px;">
-    <div class="new-cat-section" style="padding:12px;">
-      <div class="timer-edit" style="margin-top:0;"><input type="text" id="editor-new-name" maxlength="40" placeholder="Nueva categoría…"><button id="editor-new-btn">Crear</button></div>
-    </div>
-    <div id="editor-list"></div>
-  </div>
-
   <!-- ===== SCREEN 4: ARCHIVO ===== -->
   <div class="screen" id="screen-archivo">
     <div class="archivo-header">
       <button class="btn-back" id="btn-back-from-archivo">← Volver</button>
-      <h2>Archivo</h2>
+      <h2>Palabras</h2>
       <button class="btn-load" id="btn-load-html" title="Cargar una lista de palabras guardada (solo en este dispositivo)">📂 Cargar</button>
       <button class="btn-save" id="btn-save-html" title="Guardar la lista de palabras como archivo .json">💾 Guardar</button>
       <input type="file" id="inp-load-file" accept=".json,application/json" style="display:none">
@@ -430,23 +414,16 @@
     <div id="save-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--green); margin-bottom:10px; letter-spacing:0.1em;">✓ Guardado — ábrelo desde Descargas</div>
     <div id="load-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--blue); margin-bottom:10px; letter-spacing:0.1em;"></div>
     <div class="on-msg" id="archivo-lista-estado" style="margin:0 0 8px;"></div>
-    <button class="btn-archivo" id="btn-open-editor" style="margin:0 0 8px;"><span>✏️</span> Editor de palabras (editar, mover, imágenes)</button>
-    <button class="btn-archivo" id="btn-restore-seed" style="margin:0 0 12px;"><span>↺</span> Restaurar lista de serie</button>
-
-    <!-- Nueva categoría -->
-    <div class="new-cat-section">
-      <div class="section-title">+ Nueva categoría</div>
-      <div class="new-cat-fields">
-        <input type="text" id="inp-new-cat-name" class="field-inp" placeholder="Nombre de categoría" maxlength="40">
-        <input type="text" id="inp-new-cat-words" class="field-inp" placeholder="Palabras separadas por comas: Perro, Gato (felino), ...">
-        <button class="btn-add-cat" id="btn-add-cat">Añadir categoría</button>
-      </div>
-      <div class="new-cat-hint">El nombre se convertirá en un botón de categoría. Puedes añadir descripciones entre paréntesis: <em>Pizza (Italia)</em>.</div>
-      <div class="new-cat-error" id="new-cat-error"></div>
+    <div class="timer-controls" style="margin:0 0 10px;">
+      <button class="btn-secondary btn-ghost" id="editor-undo" title="Deshacer el último cambio" style="margin-top:0;font-size:1rem;">↶ Deshacer</button>
+      <button class="btn-secondary btn-ghost" id="btn-restore-seed" title="Volver a la lista original" style="margin-top:0;font-size:1rem;">↺ Lista de serie</button>
     </div>
-
-    <!-- Lista de categorías con palabras -->
-    <div id="archivo-cat-list"></div>
+    <div class="on-msg" id="editor-msg" style="margin:0 0 6px;color:var(--gold);"></div>
+    <input type="search" id="editor-search" class="field-inp" placeholder="Buscar categoría o palabra…" autocomplete="off" style="margin-bottom:12px;">
+    <div class="new-cat-section" style="padding:12px;">
+      <div class="timer-edit" style="margin-top:0;"><input type="text" id="editor-new-name" maxlength="40" placeholder="Nueva categoría…"><button id="editor-new-btn">Crear</button></div>
+    </div>
+    <div id="editor-list"></div>
   </div>
 
 </div>
@@ -5120,9 +5097,9 @@
   ]
 }
 </script>
-<script src="js/script.js?v=15"></script>
+<script src="js/script.js?v=16"></script>
 <script src="js/editor.js?v=1"></script>
-<script src="js/transport.js?v=15"></script>
-<script src="js/online.js?v=15"></script>
+<script src="js/transport.js?v=16"></script>
+<script src="js/online.js?v=16"></script>
 </body>
 </html>

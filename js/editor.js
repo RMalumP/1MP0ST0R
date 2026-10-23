@@ -23,7 +23,7 @@ function guardar() {
   }, 400);
 }
 function olvidar() { ls(s => s.removeItem(KEY)); estado(''); }
-function estado(txt) { const a = q('editor-status'), b = q('archivo-lista-estado'); if (a) a.textContent = txt; if (b) b.textContent = txt && txt.includes('✓') ? 'Lista propia guardada en este navegador.' : (txt || ''); }
+function estado(txt) { const b = q('archivo-lista-estado'); if (b) b.textContent = txt || ''; }
 function cargarGuardada() {
   const raw = ls(s => s.getItem(KEY)); if (!raw) return false;
   try {
@@ -157,11 +157,7 @@ function nueva() {
 }
 
 // ---------- pantalla ----------
-function abrir() { render(); showScreen('screen-editor'); }
-function salir() { buildArchivoScreen(new Set()); showScreen('screen-archivo'); }
 function enlazar() {
-  q('btn-open-editor').addEventListener('click', abrir);
-  q('editor-back').addEventListener('click', salir);
   q('editor-undo').addEventListener('click', deshacer);
   q('editor-search').addEventListener('input', render);
   q('editor-new-btn').addEventListener('click', nueva);
@@ -169,5 +165,5 @@ function enlazar() {
 }
 cargarGuardada();
 enlazar();
-return { guardar, olvidar };
+return { guardar, olvidar, render };
 })();
