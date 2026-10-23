@@ -32,6 +32,7 @@ alcaldeNumWords: 1, // nº de palabras definidas por el alcalde
 alcaldeHints: [], // pistas por palabra (alcalde)
   alcaldeMode: 'random', // online: 'random' = alcalde al azar, 'host' = siempre el anfitrión
 esconditeKeyWritten: false,// el primer impostor ya escribió su clave
+decoyDone: {},// jugadores (no impostor inicial) que ya escribieron su palabra señuelo
 firstImpostor: null, // primer impostor en orden de turno
 allSeen: false, // todos los jugadores han visto su carta
 eliminated: new Set(), // jugadores eliminados (1-based)
@@ -586,7 +587,7 @@ state.words = []; state.playerWordIdx = {}; state.esconditeKey = null;
 state.alcaldeWord = null;
 state.currentPlayer = 1; state.revealed = false;
 for (let i = 1; i <= state.numPlayers; i++) { if (state.impostorSet.has(i)) { state.firstImpostor = i; break; } }
-state.esconditeKeyWritten = false;
+state.esconditeKeyWritten = false; state.decoyDone = {};
 vibrate(30);
 if (typeof Online !== 'undefined' && Online.active) { Online.onAlcaldeChosen(); return; }
 const alcNom = playerNames[state.alcaldePlayer - 1] || ('Jugador ' + state.alcaldePlayer);
@@ -633,12 +634,12 @@ const keyWord = fisherYates(remainingPool.filter(w => w.category !== mainWord.ca
                || fisherYates(remainingPool)[0];
 state.word = mainWord.word; state.category = mainWord.category;
 state.esconditeKey = state.customOn ? null : keyWord.word;
-state.esconditeKeyWritten = !state.customOn;
+state.esconditeKeyWritten = !state.customOn; state.decoyDone = {};
 state.words = []; state.playerWordIdx = {};
 }
 state.firstImpostor = null;
 for (let i = 1; i <= state.numPlayers; i++) { if (state.impostorSet.has(i)) { state.firstImpostor = i; break; } }
-state.esconditeKeyWritten = false;
+state.esconditeKeyWritten = false; state.decoyDone = {};
 state.currentPlayer = 1; state.revealed = false;
 vibrate(30);
 if (typeof Online !== 'undefined' && Online.active) { Online.dealRound(); return; }
@@ -738,7 +739,7 @@ state.alcaldeWord = words.join(' / ');
 for (let i = 1; i <= state.numPlayers; i++) {
 if (state.impostorSet.has(i)) { state.firstImpostor = i; break; }
 }
-state.esconditeKeyWritten = false;
+state.esconditeKeyWritten = false; state.decoyDone = {};
 vibrate(30); goToTurn();
 });
 function isCatNoPng(catName) {
@@ -910,27 +911,30 @@ else { w.textContent = rawWord; shown.appendChild(w); }
 function buildRevealContent() {
 const isImpostor = state.impostorSet.has(state.currentPlayer);
 const shown = $('reveal-shown'); shown.innerHTML = '';
-const needsKeyInput = state.gameMode === 'escondite'
-&& state.customOn
-&& isImpostor
-&& state.currentPlayer === state.firstImpostor
-&& !state.esconditeKeyWritten;
+// Escondite con palabras personalizadas: el primer impostor escribe la clave. Para que no se note quién es, TODOS escriben una palabra
+// (los demás es un señuelo que no se usa). En el modo normal de categorías no hace falta: la clave sale de la lista.
+const modoClave = state.gameMode === 'escondite' && state.customOn;
+const esFirstImp = isImpostor && state.currentPlayer === state.firstImpostor;
+const esRealClave = modoClave && esFirstImp && !state.esconditeKeyWritten;
+const esSenuelo = modoClave && !esFirstImp && !(state.decoyDone && state.decoyDone[state.currentPlayer]);
+const needsKeyInput = esRealClave || esSenuelo;
 if (needsKeyInput) {
 const wrap = document.createElement('div'); wrap.className = 'escondite-input-wrap';
 const lbl = document.createElement('div'); lbl.className = 'escondite-inp-label';
-lbl.textContent = '🔑 Escribe la palabra clave secreta de los impostores';
+lbl.textContent = '✍️ Escribe una palabra. Si eres el impostor, será la clave secreta de tu equipo; si no, escribe cualquier cosa.';
 const inp = document.createElement('input');
 inp.type = 'text'; inp.className = 'escondite-inp';
-inp.placeholder = 'Clave secreta...'; inp.maxLength = 60;
+inp.placeholder = 'Escribe una palabra...'; inp.maxLength = 60;
 inp.autocomplete = 'off';
 inp.addEventListener('click', e => e.stopPropagation());
 const confirmBtn = document.createElement('button');
 confirmBtn.className = 'btn-escondite-confirm';
-confirmBtn.textContent = 'Confirmar clave';
+confirmBtn.textContent = 'Confirmar';
 confirmBtn.addEventListener('click', e => {
 e.stopPropagation();
 const val = inp.value.trim();
 if (!val) { inp.focus(); return; }
+if (esSenuelo) { state.decoyDone[state.currentPlayer] = true; vibrate(20); buildRevealContent(); return; }
 state.esconditeKey = val;
 state.esconditeKeyWritten = true;
 vibrate(20);

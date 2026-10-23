@@ -22,6 +22,7 @@ Usa al menos un móvil con **datos móviles** y otro con wifi. Online solo funci
 7j. **Resumen final**: al ganar un bando, todos los móviles ven la tabla de roles y palabras.
 7k. **Compartir sala**: «📨 Compartir sala» envía un enlace; al abrirlo se rellenan nombre y contraseña.
 7l. **Instalar y sin conexión**: en Chrome/Android aparece «Instalar la app»; en iPhone, Compartir → Añadir a pantalla de inicio. Instalada (o ya visitada) el modo local funciona sin internet.
+7m. **Escondite con Alcalde**: antes de ver su rol, TODOS los jugadores escriben una palabra (la del primer impostor es la clave secreta; las demás son señuelo), para que no se note quién es el impostor. En el modo normal de categorías no se pide nada.
 8. **Eliminar / resultados**: «Ver rol» y resultados solo en el anfitrión; el aviso de eliminado sale en todos; la victoria se calcula bien.
 9. **Cronómetro**: lo controla el anfitrión; todos lo ven.
 10. **Recargar y reconectar**: recarga B en plena partida → vuelve a la sala y recupera su rol. Recarga también el anfitrión.

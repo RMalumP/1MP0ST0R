@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -486,7 +486,7 @@ function renderCard() {
   $('on-tap-text').textContent = O.myRole ? (vista.compartido ? 'Toca para ver el rol de ' + vista.nombre : 'Toca para ver tu rol') : 'Esperando tu rol…';
   const pass = $('on-btn-pass');
   if (pass) { pass.style.display = vista.compartido ? 'block' : 'none'; pass.textContent = 'Pasar el móvil a ' + vista.otro + ' ➜'; }
-  const sig = ver ? O.myRole.round + '|' + vista.idx + '|' + vista.card : '';
+  const sig = ver ? O.myRole.round + '|' + vista.idx + '|' + (O.decoyDone[claveSenuelo()] ? 1 : 0) + '|' + vista.card : '';
   if (sig === O.cardSig && sig !== '') return; // sin cambios: no se toca (así no se borra la clave que se está escribiendo)
   O.cardSig = sig;
   shown.innerHTML = '';
@@ -504,9 +504,12 @@ function pasarMovil() {
   if (!O.myRole || !vistaActual().compartido) return;
   O.seatView = O.seatView + 1; O.revealed = false; vibrate(20); sfx('pass'); renderCard(); renderGame();
 }
+function claveSenuelo() { const v = vistaActual(); return (O.myRole ? O.myRole.round : 0) + '|' + v.idx; }
 function renderCardView(items, box) {
-  (Array.isArray(items) ? items : []).forEach(it => {
-    if (!it || typeof it !== 'object') return;
+  items = Array.isArray(items) ? items : [];
+  if (items[0] && items[0].k === 'decoy' && !O.decoyDone[claveSenuelo()]) { box.appendChild(crearEntradaClave(true)); return; }
+  items.forEach(it => {
+    if (!it || typeof it !== 'object' || it.k === 'decoy') return;
     const t = typeof it.t === 'string' ? it.t.slice(0, 300) : '';
     switch (it.k) {
       case 'imp': box.appendChild(el('div', 'impostor-text', t)); break;
@@ -522,18 +525,19 @@ function renderCardView(items, box) {
     }
   });
 }
-function crearEntradaClave() {
+function crearEntradaClave(senuelo) {
   const wrap = el('div', 'escondite-input-wrap');
-  wrap.appendChild(el('div', 'escondite-inp-label', '🔑 Escribe la palabra clave secreta de los impostores'));
-  const inp = el('input', 'escondite-inp'); inp.type = 'text'; inp.maxLength = 40; inp.placeholder = 'Clave secreta…';
-  const btn = el('button', 'btn-escondite-confirm', 'Confirmar clave');
+  wrap.appendChild(el('div', 'escondite-inp-label', '✍️ Escribe una palabra. Si eres el impostor, será la clave secreta de tu equipo; si no, escribe cualquier cosa.'));
+  const inp = el('input', 'escondite-inp'); inp.type = 'text'; inp.maxLength = 40; inp.placeholder = 'Escribe una palabra…';
+  const btn = el('button', 'btn-escondite-confirm', 'Confirmar');
   wrap.addEventListener('click', e => e.stopPropagation());
   btn.addEventListener('click', e => {
     e.stopPropagation();
     const v = inp.value.trim(); if (!v) { inp.focus(); return; }
+    if (senuelo) { O.decoyDone[claveSenuelo()] = true; vibrate(20); O.cardSig = ''; renderCard(); return; }
     btn.disabled = true; inp.disabled = true; btn.textContent = 'Enviando…';
     if (O.host) hostOnClave({ de: O.uid, clave: v });
-    else Transport.enviar('host', { tipo: 'clave', clave: v }).catch(e2 => { btn.disabled = false; inp.disabled = false; btn.textContent = 'Confirmar clave'; errorEnvio(e2); });
+    else Transport.enviar('host', { tipo: 'clave', clave: v }).catch(e2 => { btn.disabled = false; inp.disabled = false; btn.textContent = 'Confirmar'; errorEnvio(e2); });
     vibrate(30);
   });
   wrap.appendChild(inp); wrap.appendChild(btn);
@@ -839,7 +843,10 @@ function resText(i) {
 }
 function rolDoc(i, ronda) {
   const uid = O.order[i - 1], isImp = state.impostorSet.has(i), res = resText(i);
-  return { uid, res, doc: { round: ronda, role: isImp ? 'impostor' : 'civil', card: JSON.stringify(buildCardView(i)), res: res.slice(0, 280) } };
+  let items = buildCardView(i);
+  // Escondite con Alcalde: todos escriben una palabra primero (señuelo salvo el primer impostor) para que no se sepa quién es el impostor.
+  if (state.gameMode === 'escondite' && state.customOn && !(state.impostorSet.has(i) && i === state.firstImpostor)) items = [{ k: 'decoy' }, ...items];
+  return { uid, res, doc: { round: ronda, role: isImp ? 'impostor' : 'civil', card: JSON.stringify(items), res: res.slice(0, 280) } };
 }
 // Un documento por móvil: el del jugador y, si comparte móvil, el de su invitado dentro de "g".
 function ensamblarRoles(ronda) {
