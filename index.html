@@ -203,6 +203,14 @@
             <div class="switch on" id="sw-vibrate"></div>
           </div>
           <div class="toggle-row">
+            <div class="toggle-label">Misiones secretas<small>Cada jugador recibe una misión (palabras y acciones) que debe cumplir sin que se note</small></div>
+            <div class="switch" id="sw-mission"></div>
+          </div>
+          <div id="mission-who-row" style="display:none;margin:2px 0 8px;">
+            <div class="multi-word-label">Reciben misión</div>
+            <div class="multi-word-btns"><button class="multi-word-btn selected" data-mw="todos">Todos</button><button class="multi-word-btn" data-mw="civiles">Solo civiles</button><button class="multi-word-btn" data-mw="impostores">Solo impostores</button></div>
+          </div>
+          <div class="toggle-row">
             <div class="toggle-label">Traidor<small>Un civil secreto juega para los impostores (mín. 3 civiles)</small></div>
             <div class="switch" id="sw-traitor"></div>
           </div>
@@ -5116,6 +5124,7 @@
   ]
 }
 </script>
+<script src="js/misiones.js?v=1"></script>
 <script src="js/script.js?v=17"></script>
 <script src="js/editor.js?v=1"></script>
 <script src="js/stats.js?v=1"></script>

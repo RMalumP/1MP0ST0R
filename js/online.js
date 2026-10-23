@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!state.voteOn, hm: state.hintMode, tr: state.traitorOn ? 1 : 0, ik: state.impKnows ? 1 : 0, kc: state.keyCat };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!state.voteOn, hm: state.hintMode, tr: state.traitorOn ? 1 : 0, mi: state.missionOn ? state.missionWho : '', ik: state.impKnows ? 1 : 0, kc: state.keyCat };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -380,6 +380,7 @@ function settingsLines() {
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
   if (s.mode === 'escondite') l.push('Impostores: ' + (s.ik === 0 ? 'no conocen la palabra de la gente' : 'conocen la palabra de la gente') + (s.custom ? '' : ' · su palabra es de ' + (s.kc === 'misma' ? 'la misma categoría' : 'otra categoría')));
   if (s.tr) l.push('Traidor: sí');
+  if (s.mi) l.push('Misiones secretas: ' + ({ todos: 'todos', civiles: 'solo civiles', impostores: 'solo impostores' }[s.mi] || 'sí'));
   l.push('Votación integrada: ' + (s.vote ? 'sí' : 'no'));
   return l;
 }
@@ -568,6 +569,7 @@ function renderCardView(items, box) {
       case 'key': { const k = el('div', 'secret-key-box'); k.appendChild(el('div', 'secret-key-label', it.l || 'Clave secreta')); k.appendChild(el('div', 'secret-key-word', t)); box.appendChild(k); break; }
       case 'img': { const w = el('div', 'word-img-wrap'); box.appendChild(w); fetchWordImage(String(it.w || ''), String(it.c || ''), w, true); break; }
       case 'keyinput': box.appendChild(crearEntradaClave()); break;
+      case 'mision': box.appendChild(el('div', 'mission-note', '📋 Misión secreta: ' + t)); break;
       case 'traidor': box.appendChild(el('div', 'traitor-note', '🕶 Eres el Traidor: ganas si ganan los impostores. Tú no sabes quiénes son.')); break;
       default: break;
     }
@@ -900,6 +902,8 @@ function rolDoc(i, ronda) {
   if (state.gameMode === 'escondite' && state.customOn && !(state.impostorSet.has(i) && i === state.firstImpostor)) items = [{ k: 'decoy' }, ...items];
   const tr = !isImp && state.traitor === i;
   if (tr) items = [...items, { k: 'traidor' }];
+  const mision = state.missions && state.missions[i];
+  if (mision && !(items[0] && items[0].k === 'keyinput')) items = [...items, { k: 'mision', t: mision }];
   const doc = { round: ronda, role: isImp ? 'impostor' : 'civil', card: JSON.stringify(items), res: res.slice(0, 280) };
   if (tr) doc.tr = true;
   return { uid, res, doc };

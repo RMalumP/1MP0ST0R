@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, traitorOn: false, traitor: null, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, traitorOn: false, traitor: null, missionOn: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -84,6 +84,19 @@ state.traitor = null;
 if (!state.traitorOn || esBandos()) return;
 const civ = []; for (let i = 1; i <= state.numPlayers; i++) if (!state.impostorSet.has(i) && !(state.customOn && i === state.alcaldePlayer)) civ.push(i);
 if (civ.length >= 3) state.traitor = fisherYates(civ)[0];
+}
+// Misiones secretas (opción): se reparte una por jugador al empezar la ronda.
+function asignarMisiones() {
+state.missions = {};
+if (!state.missionOn || typeof Misiones === 'undefined') return;
+const asientos = []; for (let i = 1; i <= state.numPlayers; i++) asientos.push({ id: i, rol: rolLocal(i) });
+state.missions = Misiones.repartir(asientos, state.missionWho, esBandos());
+}
+// Notas extra de la tarjeta (traidor y misión) que se añaden al final del contenido normal.
+function notasExtra(shown, p) {
+if (state.traitor === p && !shown.querySelector('.traitor-note')) { const n = document.createElement('div'); n.className = 'traitor-note'; n.textContent = '🕶 Eres el Traidor: ganas si ganan los impostores. Tú no sabes quiénes son.'; shown.appendChild(n); }
+const m = state.missions && state.missions[p];
+if (m && !shown.querySelector('.mission-note')) { const n = document.createElement('div'); n.className = 'mission-note'; n.textContent = '📋 Misión secreta: ' + m; shown.appendChild(n); }
 }
 function pistaTexto(word, cat) {
 const m = String(word || '').match(/^(.*?)\s*\((.+)\)\s*$/);
@@ -493,6 +506,12 @@ try { if (localStorage.getItem('impostor.sound') === '0') { state.soundOn = fals
 bindSwitch('sw-sound', 'soundOn', on => { try { localStorage.setItem('impostor.sound', on ? '1' : '0'); } catch (e) { /* nada */ } if (on) sfx('reveal'); });
 bindSwitch('sw-vote', 'voteOn');
 bindSwitch('sw-traitor', 'traitorOn');
+bindSwitch('sw-mission', 'missionOn', () => updateMissionUI());
+function updateMissionUI() {
+$('mission-who-row').style.display = state.missionOn ? 'block' : 'none';
+document.querySelectorAll('[data-mw]').forEach(b => b.classList.toggle('selected', b.dataset.mw === state.missionWho));
+}
+document.querySelectorAll('[data-mw]').forEach(b => b.addEventListener('click', () => { state.missionWho = b.dataset.mw; updateMissionUI(); vibrate(10); }));
 bindSwitch('sw-timer', 'timerOn', on => { $('timer-config').style.display = on ? 'block' : 'none'; });
 $('inp-timer').addEventListener('input', e => {
 let v = parseInt(e.target.value) || 10;
@@ -642,7 +661,7 @@ if (state.customOn) {
 const nonImps = [];
 for (let i = 1; i <= state.numPlayers; i++) { if (!state.impostorSet.has(i)) nonImps.push(i); }
 state.alcaldePlayer = alcaldeAnfitrion ? Online.hostSeat() : elegirAlcalde(nonImps);
-asignarTraidor();
+asignarTraidor(); asignarMisiones();
 state.word = null; state.category = 'Personalizada';
 state.words = []; state.playerWordIdx = {}; state.esconditeKey = null;
 state.alcaldeWord = null;
@@ -699,7 +718,7 @@ state.esconditeKey = state.customOn ? null : keyWord.word;
 state.esconditeKeyWritten = !state.customOn; state.decoyDone = {};
 state.words = []; state.playerWordIdx = {};
 }
-asignarTraidor();
+asignarTraidor(); asignarMisiones();
 state.firstImpostor = null;
 for (let i = 1; i <= state.numPlayers; i++) { if (state.impostorSet.has(i)) { state.firstImpostor = i; break; } }
 state.esconditeKeyWritten = false; state.decoyDone = {};
@@ -1005,9 +1024,7 @@ else { w.textContent = rawWord; shown.appendChild(w); }
 function buildRevealContent() {
 buildRevealContentBase();
 const shown = $('reveal-shown');
-if (state.traitor === state.currentPlayer && !shown.querySelector('.traitor-note') && !shown.querySelector('.escondite-input-wrap')) {
-const n = document.createElement('div'); n.className = 'traitor-note'; n.textContent = '🕶 Eres el Traidor: ganas si ganan los impostores. Tú no sabes quiénes son.'; shown.appendChild(n);
-}
+if (!shown.querySelector('.escondite-input-wrap')) notasExtra(shown, state.currentPlayer);
 }
 function buildRevealContentBase() {
 const isImpostor = state.impostorSet.has(state.currentPlayer);
@@ -1054,6 +1071,7 @@ const h2 = document.createElement('div'); h2.className = 'hint-line';
 h2.textContent = `Pista · ${hint}`; shown.appendChild(h2);
 });
 }
+notasExtra(shown, state.currentPlayer);
 });
 wrap.appendChild(lbl); wrap.appendChild(inp); wrap.appendChild(confirmBtn);
 shown.appendChild(wrap);

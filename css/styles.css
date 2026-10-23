@@ -64,3 +64,5 @@
 #editor-list .on-kick{flex:none}
 
 .traitor-note{margin-top:12px;padding:8px 14px;background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.5);border-radius:10px;color:#c39bd3;font-size:.85rem;font-weight:500;text-align:center}
+
+.mission-note{margin-top:12px;padding:8px 14px;background:rgba(74,158,255,.12);border:1px solid rgba(74,158,255,.45);border-radius:10px;color:#8cc3ff;font-size:.85rem;font-weight:500;text-align:center}
