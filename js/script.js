@@ -330,9 +330,9 @@ document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
 $(id).classList.add('active');
 window.scrollTo({ top: 0, behavior: 'instant' });
 const bi = document.getElementById('btn-info-toggle');
-if (bi) bi.style.display = id === 'screen-setup' ? 'flex' : 'none';
+if (bi) bi.style.display = id === 'screen-home' ? 'flex' : 'none';
 const ftr = document.getElementById('info-footer');
-if (ftr && id !== 'screen-setup') ftr.classList.remove('visible');
+if (ftr && id !== 'screen-home') ftr.classList.remove('visible');
 }
 let playerNames = ['', '', '', '']; // nombres (índice 0-based), length = nº jugadores
 function getNumPlayers() { return playerNames.length; }
