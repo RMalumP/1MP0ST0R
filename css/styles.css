@@ -51,3 +51,7 @@
 
 .on-guest{margin-left:22px;border-left:3px solid var(--blue);border-top-left-radius:4px;border-bottom-left-radius:4px}
 .game-player-row.on-guest{padding-left:10px}
+
+.on-info{background:rgba(74,158,255,.08);border-color:var(--blue);color:var(--text-dim)}
+.on-note{text-align:center;font-size:.72rem;color:var(--text-faded);margin-bottom:6px;letter-spacing:.04em}
+.on-hist summary{list-style:none}

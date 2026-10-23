@@ -23,6 +23,9 @@ Usa al menos un móvil con **datos móviles** y otro con wifi. Online solo funci
 7k. **Compartir sala**: «📨 Compartir sala» envía un enlace; al abrirlo se rellenan nombre y contraseña.
 7l. **Instalar y sin conexión**: en Chrome/Android aparece «Instalar la app»; en iPhone, Compartir → Añadir a pantalla de inicio. Instalada (o ya visitada) el modo local funciona sin internet.
 7m. **Escondite con Alcalde**: antes de ver su rol, TODOS los jugadores escriben una palabra (la del primer impostor es la clave secreta; las demás son señuelo), para que no se note quién es el impostor. En el modo normal de categorías no se pide nada.
+7n. **Pista**: los civiles siempre ven la categoría; el impostor solo si Pista está activada, con tipo a elegir: Categoría, «Inicial y letras» o «Descripción» (la que va entre paréntesis en la lista).
+7ñ. **Ronda rápida**: botón «🔁 Otra ronda (mismos ajustes)» del anfitrión; **Historial** de rondas visible para todos (lobby y partida); **QR** de la sala en el panel del anfitrión; aviso de que el anfitrión coordina la partida y botón «Mantener la pantalla encendida».
+7o. **Errores**: los fallos de conexión muestran un mensaje corto y un botón «Ver detalles» con la causa técnica.
 8. **Eliminar / resultados**: «Ver rol» y resultados solo en el anfitrión; el aviso de eliminado sale en todos; la victoria se calcula bien.
 9. **Cronómetro**: lo controla el anfitrión; todos lo ven.
 10. **Recargar y reconectar**: recarga B en plena partida → vuelve a la sala y recupera su rol. Recarga también el anfitrión.
@@ -30,7 +33,7 @@ Usa al menos un móvil con **datos móviles** y otro con wifi. Online solo funci
 12. **Expulsar**: en el lobby, el anfitrión pulsa «Expulsar» en un jugador → ese móvil sale con aviso y desaparece de la lista.
 13. **Sala vacía**: salen todos, espera >5 min: otra persona puede crear una sala con el mismo nombre y contraseña.
 14. **Forzar PeerJS**: bloquea Firebase (p. ej. en el navegador, DevTools → Network → bloquear `firebaseio.com` y `googleapis.com`, o deja `PEGA_AQUI` en una copia) y crea sala: debe usar «🔗 PeerJS (respaldo)» y avisar de por qué. Comprueba en Network que se pide el TURN al Worker solo en este caso.
-15. **Imágenes**: activa imágenes y prueba palabras con paréntesis («Mercurio (planeta)»), países (bandera), una palabra rara (sin imagen: la tarjeta queda igual, sin hueco). Cambia `IMG_DEBUG` a `true` en `js/script.js` para ver en consola la consulta, la página elegida y el motivo del fallo.
+15. **Imágenes** (ahora con título exacto en 7 idiomas, imágenes con licencia no libre de la Wikipedia y búsqueda de archivos en Commons; prueba «Sancho Panza»): activa imágenes y prueba palabras con paréntesis («Mercurio (planeta)»), países (bandera), una palabra rara (sin imagen: la tarjeta queda igual, sin hueco). Cambia `IMG_DEBUG` a `true` en `js/script.js` para ver en consola la consulta, la página elegida y el motivo del fallo.
 
 ## Limitaciones conocidas (dichas con honestidad)
 

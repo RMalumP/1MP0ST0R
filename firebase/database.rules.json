@@ -108,6 +108,9 @@
           "extra": {
             ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 3000"
           },
+          "history": {
+            ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 2500"
+          },
           "vote": {
             ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 2500"
           },

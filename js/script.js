@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, hintMode: 'cat', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -55,6 +55,15 @@ function sfx(name) {
       o.connect(g); g.connect(_ac.destination); o.start(t); o.stop(t + d + .02); t += d;
     });
   } catch (e) { /* sin audio */ }
+}
+// Texto de la pista del impostor según el tipo elegido: categoría (general), categoría + inicial y nº de letras, o la descripción entre paréntesis de la lista.
+function pistaTexto(word, cat) {
+const m = String(word || '').match(/^(.*?)\s*\((.+)\)\s*$/);
+const limpia = (m ? m[1] : String(word || '')).trim(), desc = m ? m[2].trim() : '';
+const letras = limpia.replace(/[^A-Za-zÀ-ÿ0-9]/g, '').length, palabras = limpia.split(/\s+/).filter(Boolean).length;
+if (state.hintMode === 'desc' && desc) return desc;
+if ((state.hintMode === 'inicial' || state.hintMode === 'desc') && limpia) return cat + ' · empieza por «' + limpia.charAt(0).toUpperCase() + '» · ' + (palabras > 1 ? palabras + ' palabras, ' : '') + letras + ' letras';
+return cat;
 }
 function vibrate(ms) { if (state.vibrateOn && navigator.vibrate) { try { navigator.vibrate(ms); } catch(e){} } }
 function $(id) { return document.getElementById(id); }
@@ -427,7 +436,12 @@ if (state[key]) vibrate(15);
 if (onChange) onChange(state[key]);
 });
 }
-bindSwitch('sw-hint', 'hintOn');
+bindSwitch('sw-hint', 'hintOn', () => updateHintUI());
+function updateHintUI() {
+$('hint-mode-row').style.display = state.hintOn ? 'block' : 'none';
+document.querySelectorAll('[data-hm]').forEach(b => b.classList.toggle('selected', b.dataset.hm === state.hintMode));
+}
+document.querySelectorAll('[data-hm]').forEach(b => b.addEventListener('click', () => { state.hintMode = b.dataset.hm; updateHintUI(); vibrate(10); }));
 bindSwitch('sw-images', 'imagesOn');
 bindSwitch('sw-vibrate', 'vibrateOn');
 try { if (localStorage.getItem('impostor.sound') === '0') { state.soundOn = false; $('sw-sound').classList.remove('on'); } } catch (e) { /* nada */ }
@@ -802,7 +816,7 @@ const imgNorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').re
 function wikiFetch(lang, params) {
 const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
 const t = setTimeout(() => { if (ctl) ctl.abort(); }, IMG_TIMEOUT_MS);
-const url = 'https://' + lang + '.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages|description|pageprops&ppprop=disambiguation&piprop=thumbnail&pithumbsize=300&' + params;
+const url = 'https://' + lang + '.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages|description|pageprops&ppprop=disambiguation&piprop=thumbnail&pithumbsize=300&pilicense=any&' + params;
 imgLog('consulta', lang, url);
 return fetch(url, ctl ? { signal: ctl.signal } : undefined).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
 .then(d => { clearTimeout(t); return d; }).catch(e => { clearTimeout(t); imgLog('fallo de red', lang, e && e.message); return null; });
@@ -828,11 +842,42 @@ return null;
 });
 }
 // 2.ª fase (solo si no hay título exacto): búsqueda, aceptando únicamente páginas cuyo título coincide con la palabra.
+// El título coincide si es igual a la palabra, o contiene todas sus palabras con a lo sumo 2 de más («Sancho Panza (personaje)»).
+function titleCoincide(title, want) {
+const t = imgNorm(title); if (t === want) return true;
+const tw = t.split(' ').filter(Boolean), ww = want.split(' ').filter(Boolean);
+return ww.length > 0 && ww.every(w => tw.includes(w)) && tw.length <= ww.length + 2;
+}
+// Variantes del título (la Wikipedia distingue mayúsculas salvo la primera letra): tal cual, con inicial mayúscula y en Title Case.
+function variantesTitulo(word, ctx) {
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1), tc = s => s.split(' ').map(cap).join(' ');
+const base = [...new Set([word, cap(word), tc(word)])];
+return [...new Set((ctx ? base.map(w => w + ' (' + ctx + ')') : []).concat(base))];
+}
+// Último recurso: buscar el archivo directamente en Wikimedia Commons (el nombre del archivo debe contener la palabra).
+function commonsFile(query, cleanWord) {
+const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+const t = setTimeout(() => { if (ctl) ctl.abort(); }, IMG_TIMEOUT_MS);
+const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url|mime&iiurlwidth=300&gsrsearch=' + encodeURIComponent(query + ' filetype:bitmap');
+imgLog('consulta commons', url);
+return fetch(url, ctl ? { signal: ctl.signal } : undefined).then(r => r.ok ? r.json() : null).then(d => {
+clearTimeout(t);
+const pages = d && d.query && d.query.pages; if (!pages) return null;
+const want = imgNorm(cleanWord).split(' ').filter(Boolean);
+const p = Object.values(pages).sort((a, b) => (a.index || 99) - (b.index || 99)).find(x => {
+const ii = x.imageinfo && x.imageinfo[0]; if (!ii || !ii.thumburl || !/^image\/(jpeg|png|webp|gif)$/.test(ii.mime || '')) return false;
+const nombre = imgNorm(String(x.title).replace(/^(file|archivo):/i, '').replace(/\.[a-z0-9]+$/i, ''));
+return want.length > 0 && want.every(w => nombre.split(' ').includes(w)) && !IMG_BLOCK_RE.test(nombre);
+});
+if (p) imgLog('commons', query, '→', p.title); else imgLog('commons sin coincidencia', query);
+return p ? p.imageinfo[0].thumburl : null;
+}).catch(e => { clearTimeout(t); imgLog('fallo commons', e && e.message); return null; });
+}
 function searchTitle(lang, query, cleanWord) {
 return wikiFetch(lang, 'generator=search&gsrlimit=5&gsrsearch=' + encodeURIComponent(query)).then(d => {
 const pages = d && d.query && d.query.pages; if (!pages) return null;
 const want = imgNorm(cleanWord);
-const p = Object.values(pages).sort((a, b) => (a.index || 99) - (b.index || 99)).find(x => imgNorm(x.title) === want && pageUsable(x));
+const p = Object.values(pages).sort((a, b) => (a.index || 99) - (b.index || 99)).find(x => titleCoincide(x.title, want) && pageUsable(x));
 if (p) imgLog('búsqueda', lang, query, '→', p.title); else imgLog('sin coincidencia de título', lang, query);
 return p ? p.thumbnail.source : null;
 });
@@ -857,13 +902,13 @@ return firstOf([exactTitle('es', ['Bandera de ' + cleanWord]), exactTitle('en', 
 }
 return findGeneral(cleanWord, ctx);
 }
+// Ronda 1: título exacto en es y en (en paralelo). Ronda 2: otros idiomas. Ronda 3: búsqueda por texto y archivo en Commons.
 function findGeneral(cleanWord, ctx) {
-const titles = ctx ? [cleanWord + ' (' + ctx + ')', cleanWord] : [cleanWord];
-return exactTitle('es', titles).then(src => src || exactTitle('en', titles)).then(src => {
-if (src) return src;
+const titles = variantesTitulo(cleanWord, ctx);
 const q = ctx ? cleanWord + ' ' + ctx : cleanWord;
-return firstOf([searchTitle('es', q, cleanWord), searchTitle('en', q, cleanWord)]);
-});
+return firstOf([exactTitle('es', titles), exactTitle('en', titles)])
+.then(src => src || firstOf(['fr', 'de', 'it', 'pt', 'ca'].map(l => exactTitle(l, titles))))
+.then(src => src || firstOf([searchTitle('es', q, cleanWord), searchTitle('en', q, cleanWord), commonsFile(cleanWord, cleanWord)]));
 }
 function fetchWordImage(word, catName, container, online) {
 if (!online && !state.imagesOn) return;
@@ -1007,7 +1052,7 @@ if (state.hintOn && state.alcaldeHints[0]) {
 const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${state.alcaldeHints[0]}`; shown.appendChild(h);
 }
 }
-if (state.hintOn && state.category && state.category !== 'Personalizada') { const catP=document.createElement('div');catP.className='hint-line';catP.textContent='Categoría · '+state.category;shown.appendChild(catP); }
+if (state.category && state.category !== 'Personalizada') { const catP=document.createElement('div');catP.className='hint-line';catP.textContent='Categoría · '+state.category;shown.appendChild(catP); }
 if (isAlcalde) {
 const s = document.createElement('div'); s.className = 'impostor-sub'; s.textContent = 'Tienes voto de gracia'; shown.appendChild(s);
 }
@@ -1018,10 +1063,10 @@ if (state.gameMode === 'normal') {
 if (isImpostor) {
 const t = document.createElement('div'); t.className = 'impostor-text'; t.textContent = 'Eres el Impostor'; shown.appendChild(t);
 const s = document.createElement('div'); s.className = 'impostor-sub'; s.textContent = 'No reveles tu identidad'; shown.appendChild(s);
-if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${state.category}`; shown.appendChild(h); }
+if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${pistaTexto(state.word, state.category)}`; shown.appendChild(h); }
 } else {
 renderWord(state.word, shown);
-if (state.hintOn) { const catLine=document.createElement('div');catLine.className='hint-line';catLine.textContent='Categoría · '+state.category;shown.appendChild(catLine); }
+const catLine=document.createElement('div');catLine.className='hint-line';catLine.textContent='Categoría · '+state.category;shown.appendChild(catLine);
 const imgN=document.createElement('div');imgN.className='word-img-wrap';shown.appendChild(imgN);fetchWordImage(state.word,state.category,imgN);
 }
 } else if (state.gameMode === 'multiple') {
@@ -1033,7 +1078,7 @@ if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint
 const wIdx = state.playerWordIdx[state.currentPlayer] ?? 0;
 renderWord(state.words[wIdx], shown);
 const catForWord=state.wordCategories[wIdx]||state.category;
-if (state.hintOn) { const catLineM=document.createElement('div');catLineM.className='hint-line';catLineM.textContent='Categoría · '+catForWord;shown.appendChild(catLineM); }
+const catLineM=document.createElement('div');catLineM.className='hint-line';catLineM.textContent='Categoría · '+catForWord;shown.appendChild(catLineM);
 const imgM=document.createElement('div');imgM.className='word-img-wrap';shown.appendChild(imgM);fetchWordImage(state.words[wIdx],catForWord,imgM);
 if (state.multiWordCount > 2) {
 const g = document.createElement('div'); g.className = 'impostor-sub'; g.style.marginTop='8px'; g.style.color='var(--text-faded)'; g.textContent = `Grupo ${wIdx + 1} de ${state.multiWordCount}`; shown.appendChild(g);
@@ -1050,10 +1095,10 @@ const lbl = document.createElement('div'); lbl.className = 'secret-key-label'; l
 const kw = document.createElement('div'); kw.className = 'secret-key-word'; kw.textContent = state.esconditeKey;
 box.appendChild(lbl); box.appendChild(kw); shown.appendChild(box);
 }
-if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${state.category}`; shown.appendChild(h); }
+if (state.hintOn) { const h = document.createElement('div'); h.className = 'hint-line'; h.textContent = `Pista · ${pistaTexto(state.word, state.category)}`; shown.appendChild(h); }
 } else {
 renderWord(state.word, shown);
-if (state.hintOn) { const catLineE=document.createElement('div');catLineE.className='hint-line';catLineE.textContent='Categoría · '+state.category;shown.appendChild(catLineE); }
+const catLineE=document.createElement('div');catLineE.className='hint-line';catLineE.textContent='Categoría · '+state.category;shown.appendChild(catLineE);
 const imgE=document.createElement('div');imgE.className='word-img-wrap';shown.appendChild(imgE);fetchWordImage(state.word,state.category,imgE);
 }
 }

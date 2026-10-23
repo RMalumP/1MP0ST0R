@@ -51,6 +51,7 @@ En pantalla, «Archivo de palabras» permite **Guardar** (descarga `palabras.jso
 - Un móvil puede servir para **dos jugadores** (el anfitrión pulsa «👥 +1»); ese móvil alterna las tarjetas con un botón «Pasar». El anfitrión también puede cambiar nombres (✏️).
 - **Relevo de anfitrión** (Firebase): si el anfitrión desaparece, pasa automáticamente al siguiente jugador de la lista. Los jugadores sin conexión del lobby se quitan solos a los 3 minutos.
 - **Votación integrada** (opcional), **palabras propuestas** por los jugadores, **resumen final** para todos, hasta 2 invitados por móvil y orden de jugadores editable.
-- **Compartir sala** con un enlace; **sonidos** (se pueden apagar en Opciones); app **instalable** y modo local **sin conexión**.
+- **Ronda rápida**, **historial de rondas** y **pista** con tres niveles (categoría, inicial y letras, descripción).
+- **Compartir sala** con un enlace o **código QR**; **sonidos** (se pueden apagar en Opciones); app **instalable** y modo local **sin conexión**.
 - El anfitrión puede **expulsar** a un jugador desde el panel de la sala (en el lobby).
 - Si Firebase no responde en ~5 s, el anfitrión crea la sala por PeerJS (su móvil hace de servidor: no debe cerrar ni recargar la pestaña).

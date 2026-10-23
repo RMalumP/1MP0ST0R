@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=12">
+<link rel="stylesheet" href="css/styles.css?v=13">
 </head>
 <body>
 <div class="app">
@@ -49,6 +49,7 @@
     <div id="online-host-panel" class="section on-host-panel" style="display:none;">
       <div class="section-title">🌐 Sala online: <span id="on-host-room"></span> <span class="on-chip" id="on-host-transport" style="display:none;"></span></div>
       <div class="on-warn" id="on-host-warn" style="display:none;"></div>
+      <button class="btn-secondary btn-ghost" id="on-btn-wake" style="display:none;margin-top:0;margin-bottom:8px;">☀️ Mantener la pantalla encendida</button>
       <div class="on-msg" id="on-host-msg"></div>
       <div class="toggle-row" style="margin-bottom:6px;">
         <div class="toggle-label">🗳 Votación integrada<small>Cada jugador vota al impostor desde su móvil</small></div>
@@ -56,7 +57,9 @@
       </div>
       <div id="on-host-players" class="on-players"></div>
       <div id="on-proposals" class="on-players"></div>
+      <div class="on-hist" style="display:none;"></div>
       <button class="btn-secondary" id="on-btn-share">📨 Compartir sala</button>
+      <button class="btn-secondary" id="on-btn-qr">📱 Mostrar código QR</button>
       <button class="btn-secondary btn-ghost" id="on-host-leave">Cerrar la sala</button>
     </div>
     <div class="section">
@@ -154,8 +157,16 @@
       <div class="collapsible-body" id="opts-body">
         <div style="padding-top:12px;">
           <div class="toggle-row">
-            <div class="toggle-label">Pista<small>Mostrar categoría al impostor</small></div>
+            <div class="toggle-label">Pista<small>Ayuda al impostor (los demás siempre ven la categoría)</small></div>
             <div class="switch" id="sw-hint"></div>
+          </div>
+          <div id="hint-mode-row" style="display:none;margin:6px 0 4px;">
+            <div class="multi-word-label">Tipo de pista</div>
+            <div class="multi-word-btns">
+              <button class="multi-word-btn selected" data-hm="cat">Categoría</button>
+              <button class="multi-word-btn" data-hm="inicial">Inicial y letras</button>
+              <button class="multi-word-btn" data-hm="desc">Descripción</button>
+            </div>
           </div>
           <div class="toggle-row">
             <div class="toggle-label">Cronómetro<small>Activar temporizador para la ronda</small></div>
@@ -300,6 +311,8 @@
     <button class="btn-secondary" id="on-btn-join" style="margin-top:10px;">Unirme a una sala</button>
     <div class="on-msg" id="on-menu-status"></div>
     <div class="error-msg" id="on-menu-error"></div>
+    <button class="btn-back" id="on-menu-detail-btn" style="display:none;margin:0 auto 8px;">Ver detalles</button>
+    <div class="on-msg" id="on-menu-detail" style="display:none;white-space:pre-wrap;text-align:left;font-size:.75rem;"></div>
     <button class="btn-secondary btn-ghost" id="on-btn-menu-back">Volver</button>
   </div>
 
@@ -314,6 +327,7 @@
       <div class="section-title">Ajustes (los decide el anfitrión)</div>
       <div id="on-lobby-settings" class="on-settings"></div>
     </div>
+    <div class="section on-hist" style="display:none;"></div>
     <div class="section" id="on-propose-box">
       <div class="section-title">💡 Proponer una palabra</div>
       <div class="timer-edit" style="margin-top:0;"><input type="text" id="on-inp-propose" maxlength="40" placeholder="Palabra para el anfitrión…" autocomplete="off"><button id="on-btn-propose">Enviar</button></div>
@@ -325,6 +339,7 @@
 
   <!-- ===== ONLINE: PARTIDA ===== -->
   <div class="screen" id="screen-online-game">
+    <div class="on-note" id="on-host-note" style="display:none;">👑 Eres el anfitrión: no cierres la pestaña ni bloquees la pantalla.</div>
     <div class="turn-info">
       <div id="on-mode-badge"></div>
       <div class="player-num" id="on-player-name">—</div>
@@ -378,7 +393,9 @@
     </div>
     <button class="btn-ver-resultados" id="on-btn-results" style="display:none;">📋 Ver resultados</button>
     <button class="btn-secondary" id="on-btn-clear-popup" style="display:none;">Quitar aviso de eliminado a todos</button>
+    <button class="btn-secondary" id="on-btn-quick" style="display:none;">🔁 Otra ronda (mismos ajustes)</button>
     <button class="end-btn" id="on-btn-end" style="display:none;">Terminar ronda</button>
+    <div class="section on-hist" style="display:none;"></div>
     </div>
     <button class="end-btn" id="on-btn-cancel-wait" style="display:none;">Cancelar ronda</button>
     <button class="btn-secondary btn-ghost" id="on-btn-leave">Salir de la sala</button>
@@ -5084,8 +5101,8 @@
   ]
 }
 </script>
-<script src="js/script.js?v=12"></script>
-<script src="js/transport.js?v=12"></script>
-<script src="js/online.js?v=12"></script>
+<script src="js/script.js?v=13"></script>
+<script src="js/transport.js?v=13"></script>
+<script src="js/online.js?v=13"></script>
 </body>
 </html>

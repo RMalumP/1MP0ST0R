@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, quickPending: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : 'rand', vote: !!state.voteOn };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : 'rand', vote: !!state.voteOn, hm: state.hintMode };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -73,6 +73,7 @@ async function conectar(modo) {
   if (O.busy) return;
   const room = $('on-room').value, pass = $('on-pass').value, name = $('on-name').value.trim();
   const err = $('on-menu-error'); err.textContent = '';
+  $('on-menu-detail').style.display = 'none'; $('on-menu-detail-btn').style.display = 'none';
   if (room.trim().length < 3) { err.textContent = 'El nombre de la sala debe tener al menos 3 caracteres.'; return; }
   if (pass.trim().length < 4) { err.textContent = 'La contraseña debe tener al menos 4 caracteres.'; return; }
   if (!name) { err.textContent = 'Escribe tu nombre.'; return; }
@@ -84,6 +85,7 @@ async function conectar(modo) {
     O.shareData = { room: room.trim(), pass };
   } catch (e) {
     err.textContent = (e && e.message) || 'No se pudo conectar.';
+    if (e && e.detalle) { $('on-menu-detail').textContent = e.detalle; $('on-menu-detail-btn').style.display = 'inline-block'; console.warn(e.detalle); }
   } finally { setBusy(false); }
 }
 function entrarEnSala(res, roomName, name) {
@@ -169,11 +171,33 @@ function enviarPropuesta() {
   Transport.enviar('host', { tipo: 'propuesta', texto: t }).then(() => { inp.value = ''; msg.textContent = 'Enviada ✓ El anfitrión decidirá si la añade.'; }).catch(errorEnvio);
 }
 // ---------- compartir la sala (enlace con el nombre y, si se quiere, la contraseña en el fragmento #, que no viaja a ningún servidor) ----------
-function hostCompartir() {
+function armarEnlace() {
   const d = O.shareData, base = location.href.split('#')[0];
   let url = base, texto = 'Sala del Impostor: ' + O.roomName;
-  if (d && confirm('El enlace incluirá la contraseña de la sala (quien lo reciba entrará directamente). ¿Compartirlo así?')) { url = base + '#s=' + encodeURIComponent(d.room + '\n' + d.pass); texto += ' · Contraseña: ' + d.pass; }
+  if (d && confirm('El enlace incluirá la contraseña de la sala (quien lo reciba entrará directamente). ¿Hacerlo así?')) { url = base + '#s=' + encodeURIComponent(d.room + '\n' + d.pass); texto += ' · Contraseña: ' + d.pass; }
   else texto += ' (pídele la contraseña al anfitrión)';
+  return { url, texto };
+}
+// QR con el enlace de la sala: quien lo escanee con la cámara entra directamente (la librería se carga solo al pedirlo).
+function cargarQR() {
+  if (window.qrcode) return Promise.resolve();
+  return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = 'js/qrcode.js?v=1'; s.onload = ok; s.onerror = () => ko(new Error('No se pudo cargar el generador de QR.')); document.head.appendChild(s); });
+}
+function hostMostrarQR() {
+  const { url } = armarEnlace();
+  cargarQR().then(() => {
+    const qr = window.qrcode(0, 'M'); qr.addData(url); qr.make();
+    const ov = el('div', 'rol-overlay'); ov.style.zIndex = 1200;
+    const card = el('div', 'rol-card'); card.style.background = '#fff'; card.style.color = '#111';
+    const t = el('div', 'rol-player-label', 'Escanea con la cámara'); t.style.color = '#555';
+    const box = el('div'); box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); box.style.cssText = 'width:100%;max-width:280px;margin:10px auto;';
+    const svg = box.querySelector('svg'); if (svg) { svg.style.width = '100%'; svg.style.height = 'auto'; }
+    const h = el('div', 'rol-tap-hint', 'Toca para cerrar'); h.style.color = '#555';
+    card.append(t, box, h); ov.appendChild(card); ov.addEventListener('click', () => ov.remove()); document.body.appendChild(ov);
+  }).catch(e => errorEnvio(e));
+}
+function hostCompartir() {
+  const { url, texto } = armarEnlace();
   if (navigator.share) navigator.share({ title: 'El Impostor', text: texto, url }).catch(() => {});
   else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto + '\n' + url).then(() => aviso('Enlace copiado.'), () => prompt('Copia este enlace:', url));
   else prompt('Copia este enlace:', url);
@@ -267,6 +291,7 @@ function onEstado(st) {
   if (O.firstState) {
     O.firstState = false;
     if (enJuego) O.lastRoundShown = st.round;
+    if (O.host) O.history = [].concat(parse(st.history, []));
     if (O.host && enJuego) { recuperarRolesHost(); O.readySet = new Set(parse(st.ready, [])); }
     if (O.host && st.phase === 'alcalde') { volverALobby(true); return; } // el reparto pendiente se perdió al recargar
   } else if (st.phase === 'playing' && st.round !== O.lastRoundShown) {
@@ -279,6 +304,7 @@ function onEstado(st) {
   if (!enJuego) cerrarPopup(false);
   revisarPopup();
   route(); renderTodo();
+  if (O.quickPending && st.phase === 'lobby') { O.quickPending = false; setTimeout(() => { if (O.active && O.host && (O.pub.phase || 'lobby') === 'lobby') $('btn-start').click(); }, 200); }
 }
 function onRol(m) {
   if (m.vacio) { O.myRole = null; O.revealed = false; renderCard(); return; }
@@ -332,10 +358,12 @@ function renderHostPanel() {
   $('on-host-room').textContent = O.roomName;
   $('on-host-transport').textContent = Transport.etiqueta();
   const w = $('on-host-warn');
-  if (O.transporte === 'peer') {
-    w.style.display = 'block';
-    w.textContent = '⚠️ Este móvil hace de servidor de la sala: no cierres ni recargues esta pestaña y no dejes que se bloquee la pantalla; si se pierde, los demás se quedan sin conexión.';
-  } else { w.style.display = 'none'; w.textContent = ''; }
+  const peer = O.transporte === 'peer';
+  w.style.display = 'block'; w.className = 'on-warn' + (peer ? '' : ' on-info');
+  w.textContent = peer
+    ? '⚠️ Este móvil hace de servidor de la sala: no cierres ni recargues esta pestaña y no dejes que se bloquee la pantalla; si se pierde, los demás se quedan sin conexión.'
+    : 'ℹ️ Eres el anfitrión: tu móvil coordina la partida. Procura no cerrar la pestaña ni bloquear la pantalla; si te desconectas mucho rato, el control pasará al siguiente jugador.';
+  const wk = $('on-btn-wake'); if (wk) wk.style.display = (navigator.wakeLock && !O.wake) ? 'block' : 'none';
   const list = $('on-host-players'); list.innerHTML = '';
   const lobby = (O.pub.phase || 'lobby') === 'lobby';
   seats().forEach(pl => list.appendChild(chip(pl, lobby)));
@@ -347,7 +375,7 @@ function renderHostPanel() {
 }
 function settingsLines() {
   const s = ajustes(); if (!s.mode) return ['Esperando los ajustes del anfitrión…'];
-  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí' : 'no')];
+  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí (' + ({ cat: 'categoría', inicial: 'inicial y letras', desc: 'descripción' }[s.hm] || 'categoría') + ')' : 'no')];
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
   l.push('Votación integrada: ' + (s.vote ? 'sí' : 'no'));
   return l;
@@ -365,6 +393,7 @@ function renderLobby() {
   const box = $('on-lobby-settings'); box.innerHTML = '';
   settingsLines().forEach(t => box.appendChild(el('div', 'on-setting', t)));
   $('on-btn-cancel-round').style.display = (O.host && ph === 'alcalde') ? 'block' : 'none';
+  renderHistorial();
   const pb = $('on-propose-box'); if (pb) pb.style.display = (!O.host && ph === 'lobby') ? 'block' : 'none';
 }
 
@@ -381,6 +410,9 @@ function renderGame() {
   const fin = $('on-btn-end'); fin.style.display = O.host ? 'block' : 'none';
   fin.textContent = O.pub.result ? 'Nueva ronda' : 'Terminar ronda';
   $('on-btn-results').style.display = O.host ? 'block' : 'none';
+  const hn = $('on-host-note'); if (hn) hn.style.display = O.host ? 'block' : 'none';
+  const qk = $('on-btn-quick'); if (qk) qk.style.display = (O.host && (O.pub.phase === 'playing' || O.pub.phase === 'ended') && !esperando()) ? 'block' : 'none';
+  renderHistorial();
   $('on-btn-clear-popup').style.display = (O.host && O.pub.popup) ? 'block' : 'none';
 }
 // ---------- espera inicial: cada móvil ve su rol y pulsa «Comenzar»; cuando todos lo hacen sale la pantalla de partida ----------
@@ -653,7 +685,7 @@ function volverseAnfitrion() {
   $('screen-setup').classList.add('online-host');
   clearInterval(O.setInt); O.setInt = setInterval(() => publicarAjustes(false), 1000);
   pedirWake();
-  O.readySet = new Set(parse(O.pub.ready, []));
+  O.readySet = new Set(parse(O.pub.ready, [])); O.history = [].concat(parse(O.pub.history, []));
   const ph = O.pub.phase || 'lobby';
   if (ph === 'alcalde') volverALobby(true);
   else if (ph === 'playing' || ph === 'ended') recuperarRolesHost();
@@ -809,7 +841,7 @@ function buildCardView(p) {
         it.push({ k: 'wtxt', t: state.word || '—' });
         if (state.hintOn && hints[0]) hint('Pista · ' + hints[0]);
       }
-      if (state.hintOn && state.category && state.category !== 'Personalizada') hint('Categoría · ' + state.category);
+      if (state.category && state.category !== 'Personalizada') hint('Categoría · ' + state.category);
       if (alc) sub('Tienes voto de gracia');
     }
     return it;
@@ -819,7 +851,7 @@ function buildCardView(p) {
     else {
       const w = state.playerWordIdx[p] !== undefined ? state.playerWordIdx[p] : 0;
       const cat = (state.wordCategories && state.wordCategories[w]) || state.category;
-      it.push({ k: 'word', t: state.words[w] || '—' }); if (state.hintOn) hint('Categoría · ' + cat); img(state.words[w], cat);
+      it.push({ k: 'word', t: state.words[w] || '—' }); hint('Categoría · ' + cat); img(state.words[w], cat);
       if (state.multiWordCount > 2) sub('Grupo ' + (w + 1) + ' de ' + state.multiWordCount, true);
     }
   } else if (mode === 'escondite') {
@@ -827,13 +859,13 @@ function buildCardView(p) {
       imp(); sub('Conoces la palabra · Encuéntrate con tus aliados');
       it.push({ k: 'word', t: state.word });
       if (state.esconditeKey) it.push({ k: 'key', l: 'Clave secreta', t: state.esconditeKey });
-      if (state.hintOn) hint('Pista · ' + state.category);
+      if (state.hintOn) hint('Pista · ' + pistaTexto(state.word, state.category));
     } else {
-      it.push({ k: 'word', t: state.word }); if (state.hintOn) hint('Categoría · ' + state.category);
+      it.push({ k: 'word', t: state.word }); hint('Categoría · ' + state.category);
       img(state.word, state.category);
     }
-  } else if (isImp) { imp(); sub('No reveles tu identidad'); if (state.hintOn) hint('Pista · ' + state.category); }
-  else { it.push({ k: 'word', t: state.word }); if (state.hintOn) hint('Categoría · ' + state.category); img(state.word, state.category); }
+  } else if (isImp) { imp(); sub('No reveles tu identidad'); if (state.hintOn) hint('Pista · ' + pistaTexto(state.word, state.category)); }
+  else { it.push({ k: 'word', t: state.word }); hint('Categoría · ' + state.category); img(state.word, state.category); }
   return it;
 }
 function resText(i) {
@@ -919,8 +951,31 @@ function hostEliminar(uid) {
   const upd = { tipo: 'estado', eliminated: JSON.stringify([...O.elim]), popup: { id, name: nombreDe(uid).slice(0, 24), role: info.role } };
   upd.vote = null;
   const g = calcularGanador();
-  if (g) { upd.result = g; upd.phase = 'ended'; upd.summary = resumenJson(); }
+  if (g) { upd.result = g; upd.phase = 'ended'; upd.summary = resumenJson(); registrarRonda(g); upd.history = historialJson(); }
   Transport.enviar('todos', upd).catch(e => { O.elim.delete(uid); errorEnvio(e); });
+}
+// Historial de rondas (lo escribe el anfitrión y lo ven todos): ronda, resultado, impostores y palabra.
+function registrarRonda(res) {
+  const ronda = O.pub.round || 0;
+  if (!O.host || !ronda || O.histRound === ronda || !Object.keys(O.hostRoles).length) return O.history;
+  O.histRound = ronda;
+  const imps = Object.keys(O.hostRoles).filter(id => O.hostRoles[id].role === 'impostor').map(id => nombreDe(id).slice(0, 16));
+  const pal = [...new Set(Object.keys(O.hostRoles).filter(id => O.hostRoles[id].role !== 'impostor').map(id => clean(O.hostRoles[id].res).slice(0, 24)))].slice(0, 3).join(' / ');
+  O.history.push([ronda, res, imps.join(', ').slice(0, 60), pal]);
+  while (O.history.length > 1 && JSON.stringify(O.history).length > 2300) O.history.shift();
+  return O.history;
+}
+function historialJson() { return JSON.stringify(O.history.slice(-12)); }
+function renderHistorial() {
+  const h = parse(O.pub.history, []);
+  document.querySelectorAll('.on-hist').forEach(box => {
+    box.innerHTML = '';
+    if (!Array.isArray(h) || !h.length) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    const d = el('details'), s = el('summary', 'section-title', '📜 Historial de rondas (' + h.length + ')'); s.style.cursor = 'pointer'; d.appendChild(s);
+    h.slice().reverse().forEach(x => { if (!Array.isArray(x)) return; d.appendChild(el('div', 'on-setting', 'Ronda ' + x[0] + ' · ' + (x[1] === 'civiles' ? '🏆 Civiles' : x[1] === 'impostores' ? '🐄 Impostores' : 'Sin final') + ' · Impostor(es): ' + (x[2] || '—') + (x[3] ? ' · Palabra: ' + x[3] : ''))); });
+    box.appendChild(d);
+  });
 }
 function resumenJson() {
   return JSON.stringify(Object.keys(O.hostRoles).map(id => [nombreDe(id).slice(0, 24), O.hostRoles[id].role === 'impostor' ? 'I' : 'C', clean(O.hostRoles[id].res).slice(0, 40), O.elim.has(id) ? 1 : 0]));
@@ -939,11 +994,18 @@ function hostResultados() {
 }
 function volverALobby(silencioso) {
   if (!O.host) return;
+  if (O.pub.phase === 'playing' && O.pub.waiting !== true && !O.pub.result) registrarRonda('-');
   O.hostRoles = {}; O.elim = new Set(); O.pending = false; O.timerSecs = null; O.readySet = new Set();
-  Transport.enviar('todos', { tipo: 'reparto', roles: null, estado: { phase: 'lobby', round: O.pub.round || 0, settings: JSON.stringify(settingsObj()), starting: null, alcalde: null, alcaldeName: null, alcaldeWords: null, timer: null, eliminated: null, popup: null, result: null, waiting: null, ready: null, vote: null, summary: null } })
+  Transport.enviar('todos', { tipo: 'reparto', roles: null, estado: { phase: 'lobby', round: O.pub.round || 0, settings: JSON.stringify(settingsObj()), starting: null, alcalde: null, alcaldeName: null, alcaldeWords: null, timer: null, eliminated: null, popup: null, result: null, waiting: null, ready: null, vote: null, summary: null, history: historialJson() } })
     .catch(errorEnvio);
   O.lastSettings = JSON.stringify(settingsObj());
   if (!silencioso) vibrate(30);
+}
+// Ronda rápida: vuelve al lobby y reparte otra vez con los mismos ajustes (el botón «Comenzar» se pulsa solo).
+function hostRondaRapida() {
+  if (!O.host) return;
+  if (!O.pub.result && !confirm('¿Terminar esta ronda y empezar otra con los mismos ajustes?')) return;
+  O.quickPending = true; volverALobby(true);
 }
 function hostTerminar() {
   if (!O.host) return;
@@ -1005,6 +1067,9 @@ function bind() {
   $('on-reveal-card').addEventListener('click', () => { if (!O.myRole) return; O.revealed = !O.revealed; vibrate(O.revealed ? 25 : 15); sfx(O.revealed ? (vistaActual().rol === 'impostor' ? 'impostor' : 'civil') : 'pass'); renderCard(); });
   $('on-btn-results').addEventListener('click', () => { hostResultados(); vibrate(15); });
   $('on-btn-end').addEventListener('click', hostTerminar);
+  $('on-btn-wake').addEventListener('click', () => { pedirWake().then(() => { renderHostPanel(); renderGame(); }); });
+  $('on-btn-quick').addEventListener('click', hostRondaRapida);
+  $('on-btn-qr').addEventListener('click', hostMostrarQR);
   $('on-btn-vote-start').addEventListener('click', hostIniciarVoto);
   $('on-btn-vote-close').addEventListener('click', hostCerrarVoto);
   $('on-btn-vote-cancel').addEventListener('click', hostCancelarVoto);
@@ -1012,6 +1077,7 @@ function bind() {
   $('on-btn-propose').addEventListener('click', enviarPropuesta);
   $('on-btn-share').addEventListener('click', hostCompartir);
   $('on-pass').addEventListener('input', fuerzaClave);
+  $('on-menu-detail-btn').addEventListener('click', () => { const d = $('on-menu-detail'); d.style.display = d.style.display === 'block' ? 'none' : 'block'; });
   $('on-btn-takeover').addEventListener('click', tomarSala);
   $('on-btn-pass').addEventListener('click', pasarMovil);
   $('on-btn-ready').addEventListener('click', marcarListo);

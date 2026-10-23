@@ -63,10 +63,14 @@ const Transport = (function () {
     const def = es.find(e => DEFINITIVOS.includes(e.code)); if (def) return def;
     if (es.length && es.every(e => e.code === 'sala-no-encontrada')) return errApp('sala-no-encontrada', 'Sala no encontrada o contraseña incorrecta.');
     const det = [detalle('Conexión principal', eFb), detalle('Conexión de respaldo', ePeer)].filter(Boolean).join(' · ');
-    if (accion === 'crear') {
-      return errApp('sin-transporte', 'No se pudo crear la sala. Posibles causas: no tienes conexión a internet; Firebase no está bien configurado o este dominio no está autorizado; tu red bloquea las conexiones directas del modo de respaldo. Detalle técnico → ' + det);
-    }
-    return errApp('sin-transporte', 'No se pudo entrar en la sala. Posibles causas: el nombre de sala o la contraseña no son correctos; el anfitrión todavía no ha creado la sala; tu conexión (o la del anfitrión) no permite conectar. Detalle técnico → ' + det);
+    // Mensaje corto para el jugador; las causas posibles y el detalle técnico van aparte (botón «Ver detalles»).
+    const e = accion === 'crear'
+      ? errApp('sin-transporte', 'No se pudo crear la sala. Comprueba tu conexión a internet e inténtalo de nuevo.')
+      : errApp('sin-transporte', 'No se pudo entrar en la sala. Revisa el nombre y la contraseña, y que el anfitrión ya la haya creado.');
+    e.detalle = (accion === 'crear'
+      ? 'Posibles causas: no tienes conexión a internet; el servicio de salas no está bien configurado o este dominio no está autorizado; tu red bloquea las conexiones directas.'
+      : 'Posibles causas: el nombre de sala o la contraseña no son correctos; el anfitrión todavía no ha creado la sala; tu conexión (o la del anfitrión) no permite conectar.') + '\nDetalle técnico → ' + det;
+    return e;
   }
 
   async function crearSala(nombre, password, nombreJugador) {
