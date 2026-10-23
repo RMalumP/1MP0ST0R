@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, quickOn: false, quickSecs: 60, hintStaged: false, wordB: null, categoryB: null, traitorOn: false, traitor: null, missionOn: false, missionSpicy: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, quickOn: false, quickSecs: 60, hintStaged: false, wordB: null, categoryB: null, traitorOn: false, traitor: null, missionOn: false, missionSpicy: true, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,

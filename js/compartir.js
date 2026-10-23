@@ -22,7 +22,13 @@ async function desempaquetar(txt) {
   if (u8.length > WORDS_LIMITS.maxFileBytes) throw new Error('La lista es demasiado grande.');
   return JSON.parse(new TextDecoder().decode(u8));
 }
-const objetoLista = cats => ({ version: 2, categorias: cats.map(c => { const o = { id: c.id, nombre: c.name, bloqueada: !!c.blocked, sinImagenes: !!c.noImages, palabras: c.words.slice() }; if (c.image) o.imagen = c.image; if (c.images && Object.keys(c.images).length) o.imagenes = c.images; return o; }) });
+// Misiones propias = las que no están en la lista de serie (editadas o añadidas): son pocas y caben en un QR.
+function misionesPropias() {
+  const M = Misiones.get(), o = {}; let n = 0;
+  Misiones.CLAVES.forEach(k => { const s = new Set(Misiones.serie(k)); const extra = M[k].filter(t => !s.has(t)); if (extra.length) { o[k] = extra; n += extra.length; } });
+  return { o, n };
+}
+const objetoLista = (cats, mis) => Object.assign({ version: 2, categorias: cats.map(c => { const o = { id: c.id, nombre: c.name, bloqueada: !!c.blocked, sinImagenes: !!c.noImages, palabras: c.words.slice() }; if (c.image) o.imagen = c.image; if (c.images && Object.keys(c.images).length) o.imagenes = c.images; return o; }) }, mis ? { misiones: mis } : {});
 function cerrable(contenido) {
   const ov = el('div', 'rol-overlay'); ov.style.zIndex = 1200; ov.style.alignItems = 'flex-start'; ov.style.overflowY = 'auto';
   const card = el('div', 'rol-card'); card.style.textAlign = 'left'; card.style.margin = 'auto'; card.appendChild(contenido);
@@ -39,11 +45,13 @@ function abrirCompartir() {
   const lista = el('div'); lista.style.cssText = 'max-height:38vh;overflow-y:auto;margin:8px 0;';
   CATEGORIES.forEach((c, i) => { const f = el('label'); f.style.cssText = 'display:flex;gap:8px;align-items:center;padding:6px 2px;font-size:.88rem;color:var(--text)'; const cb = el('input'); cb.type = 'checkbox'; cb.value = i; f.append(cb, el('span', '', c.name + ' (' + c.words.length + ')')); lista.appendChild(f); });
   cont.appendChild(lista);
+  const mp = misionesPropias(), fm = el('label'); fm.style.cssText = 'display:flex;gap:8px;align-items:center;padding:6px 2px;font-size:.88rem;color:var(--text)';
+  const cbm = el('input'); cbm.type = 'checkbox'; cbm.disabled = !mp.n; fm.append(cbm, el('span', '', mp.n ? 'Incluir mis misiones propias (' + mp.n + ')' : 'Misiones propias: no tienes (las de serie no hace falta enviarlas)')); cont.appendChild(fm);
   const res = el('div'); const gen = el('button', 'btn-primary', 'Generar QR'); gen.style.fontSize = '1.1rem'; gen.style.padding = '12px';
   gen.addEventListener('click', async () => {
     const sel = [...lista.querySelectorAll('input:checked')].map(c => CATEGORIES[Number(c.value)]); res.innerHTML = '';
-    if (!sel.length) { res.appendChild(el('div', 'error-msg', 'Elige al menos una categoría.')); return; }
-    const datos = await empaquetar(objetoLista(sel)), url = location.href.split('#')[0] + '#lista=' + datos;
+    if (!sel.length && !cbm.checked) { res.appendChild(el('div', 'error-msg', 'Elige al menos una categoría o las misiones.')); return; }
+    const datos = await empaquetar(objetoLista(sel, cbm.checked ? mp.o : null)), url = location.href.split('#')[0] + '#lista=' + datos;
     res.appendChild(el('div', 'on-msg', 'Tamaño: ' + datos.length + ' caracteres (máximo para QR: ' + MAX_QR + ').'));
     if (datos.length <= MAX_QR) {
       try { await cargarScript('js/qrcode.js?v=1'); const qr = window.qrcode(0, 'L'); qr.addData(url); qr.make(); const b = el('div'); b.style.cssText = 'background:#fff;padding:6px;border-radius:10px;max-width:300px;margin:8px auto;'; b.innerHTML = qr.createSvgTag({ cellSize: 3, margin: 2, scalable: true }); const svg = b.querySelector('svg'); if (svg) { svg.style.width = '100%'; svg.style.height = 'auto'; } res.appendChild(b); }
@@ -58,11 +66,16 @@ function abrirCompartir() {
 // ---------- importar ----------
 async function importarTexto(txt) {
   txt = String(txt || '').trim(); const i = txt.indexOf('#lista='); if (i >= 0) txt = txt.slice(i + 7);
-  const obj = await desempaquetar(txt), r = parseWordsData(obj, { dedupe: true });
+  const obj = await desempaquetar(txt);
+  // Solo misiones (sin categorías): se valida aparte porque parseWordsData exige al menos una categoría.
+  const soloMis = obj && Array.isArray(obj.categorias) && obj.categorias.length === 0 && obj.misiones && typeof obj.misiones === 'object';
+  const r = soloMis ? { categories: [], misiones: obj.misiones } : parseWordsData(obj, { dedupe: true });
+  const nMis = r.misiones ? Misiones.CLAVES.reduce((a, k) => a + Misiones.limpiar(r.misiones[k]).length, 0) : 0;
+  if (!r.categories.length && !nMis) throw new Error('El código no trae palabras ni misiones.');
   const nPal = r.categories.reduce((a, c) => a + c.words.length, 0);
-  if (!confirm('Se han recibido ' + r.categories.length + ' categoría(s) con ' + nPal + ' palabras:\n' + r.categories.map(c => '· ' + c.name + ' (' + c.words.length + ')').join('\n').slice(0, 400) + '\n\n¿Añadirlas a tu lista? (si una categoría ya existe, se le añaden las palabras nuevas)')) return false;
-  const res = Editor.fusionar(r.categories);
-  aviso('Importado: ' + res.nuevas + ' categoría(s) nuevas, ' + res.palabras + ' palabra(s) añadidas.');
+  if (!confirm('Se ha recibido: ' + r.categories.length + ' categoría(s) con ' + nPal + ' palabras' + (nMis ? ' y ' + nMis + ' misión(es)' : '') + ':\n' + r.categories.map(c => '· ' + c.name + ' (' + c.words.length + ')').join('\n').slice(0, 400) + '\n\n¿Añadirlas a tu lista? (si una categoría ya existe, se le añaden las palabras nuevas)')) return false;
+  const res = Editor.fusionar(r.categories, r.misiones);
+  aviso('Importado: ' + res.nuevas + ' categoría(s) nuevas, ' + res.palabras + ' palabra(s) y ' + res.misiones + ' misión(es) añadidas.');
   return true;
 }
 // Decodifica un QR de un fotograma/imagen con BarcodeDetector o, si no existe, con jsQR.

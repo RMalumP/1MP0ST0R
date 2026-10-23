@@ -208,11 +208,21 @@ function enlazar() {
   q('editor-tab-pal').addEventListener('click', () => { vista = 'palabras'; q('editor-search').value = ''; render(); });
   q('editor-tab-mis').addEventListener('click', () => { vista = 'misiones'; q('editor-search').value = ''; render(); });
 }
+// Como app instalada: pedir al navegador que NO borre estos datos (listas y misiones) aunque falte espacio.
+function persistencia() {
+  const n = q('archivo-persist'); if (!n) return;
+  const base = 'Todo lo que cambies o importes (palabras y misiones) se guarda solo en esta app: no hace falta volver a cargarlo.';
+  n.textContent = base;
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persisted().then(p => p || navigator.storage.persist()).then(p => { n.textContent = base + (p ? ' Almacenamiento protegido ✓' : ''); }).catch(() => {});
+  }
+}
 cargarGuardada();
 enlazar();
+persistencia();
 // Fusiona categorías recibidas (por QR/enlace): si ya existe una con el mismo nombre se le añaden las palabras nuevas; si no, se crea.
-function fusionar(cats) {
-  snap(); let nuevas = 0, palabras = 0;
+function fusionar(cats, mis) {
+  snap(); let nuevas = 0, palabras = 0, misiones = 0;
   cats.forEach(c => {
     let dest = CATEGORIES.find(x => norm(x.name) === norm(c.name));
     if (!dest) {
@@ -224,8 +234,13 @@ function fusionar(cats) {
     c.words.forEach(w => { if (!ya.has(clave(w))) { ya.add(clave(w)); dest.words.push(w); palabras++; } });
     Object.keys(c.images || {}).forEach(k => { dest.images = dest.images || {}; if (!dest.images[k]) dest.images[k] = c.images[k]; });
   });
+  if (mis) {
+    const M = Misiones.get();
+    Misiones.CLAVES.forEach(k => { const ya = new Set(M[k].map(norm)); Misiones.limpiar(mis[k]).forEach(t => { if (!ya.has(norm(t))) { ya.add(norm(t)); M[k].push(t); misiones++; } }); });
+    if (misiones) Misiones.set(M);
+  }
   cambio({ grid: true }); render();
-  return { nuevas, palabras };
+  return { nuevas, palabras, misiones };
 }
 return { guardar, olvidar, render, fusionar };
 })();

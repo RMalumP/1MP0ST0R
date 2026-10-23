@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=24">
+<link rel="stylesheet" href="css/styles.css?v=25">
 </head>
 <body>
 <div class="app">
@@ -183,7 +183,7 @@
         <div class="multi-word-btns compact"><button class="multi-word-btn selected" data-mw="todos">Todos</button><button class="multi-word-btn" data-mw="civiles">Solo civiles</button><button class="multi-word-btn" data-mw="impostores">Solo impostores</button></div>
         <div class="toggle-row" style="margin-top:6px;">
         <div class="toggle-label">🌶 Incluir misiones picantes<small>Más atrevidas y de postureo (sin nada sexual ni de pareja)</small></div>
-        <div class="switch" id="sw-spicy"></div>
+        <div class="switch on" id="sw-spicy"></div>
         </div>
         </div>
       </div>
@@ -471,7 +471,8 @@
     </div>
     <div id="save-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--green); margin-bottom:10px; letter-spacing:0.1em;">✓ Guardado — ábrelo desde Descargas</div>
     <div id="load-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--blue); margin-bottom:10px; letter-spacing:0.1em;"></div>
-    <div class="on-msg" id="archivo-lista-estado" style="margin:0 0 8px;"></div>
+    <div class="on-msg" id="archivo-lista-estado" style="margin:0 0 4px;"></div>
+    <div class="on-msg" id="archivo-persist" style="margin:0 0 8px;font-size:.72rem;color:var(--text-faded);"></div>
     <div class="timer-controls" style="margin:0 0 10px;">
       <button class="btn-secondary btn-ghost btn-mini" id="editor-undo" title="Deshacer el último cambio" style="margin-top:0;font-size:1rem;">↶ Deshacer</button>
       <button class="btn-secondary btn-ghost btn-mini" id="btn-restore-seed" title="Volver a la lista original" style="margin-top:0;font-size:1rem;">↺ Lista de serie</button>
@@ -5166,11 +5167,11 @@
 }
 </script>
 <script src="js/misiones.js?v=1"></script>
-<script src="js/script.js?v=24"></script>
+<script src="js/script.js?v=25"></script>
 <script src="js/editor.js?v=1"></script>
 <script src="js/stats.js?v=1"></script>
 <script src="js/compartir.js?v=1"></script>
-<script src="js/transport.js?v=24"></script>
-<script src="js/online.js?v=24"></script>
+<script src="js/transport.js?v=25"></script>
+<script src="js/online.js?v=25"></script>
 </body>
 </html>
