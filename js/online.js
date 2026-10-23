@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : 'rand', vote: !!state.voteOn, hm: state.hintMode, ik: state.impKnows ? 1 : 0, kc: state.keyCat };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!state.voteOn, hm: state.hintMode, ik: state.impKnows ? 1 : 0, kc: state.keyCat };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -376,7 +376,7 @@ function renderHostPanel() {
 }
 function settingsLines() {
   const s = ajustes(); if (!s.mode) return ['Esperando los ajustes del anfitrión…'];
-  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí (' + ({ cat: 'categoría', inicial: 'inicial y letras', desc: 'descripción' }[s.hm] || 'categoría') + ')' : 'no')];
+  const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : s.alc === 'rot' ? 'sin repetir' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí (' + ({ cat: 'categoría', inicial: 'inicial y letras', desc: 'descripción' }[s.hm] || 'categoría') + ')' : 'no')];
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
   if (s.mode === 'escondite') l.push('Impostores: ' + (s.ik === 0 ? 'no conocen la palabra de la gente' : 'conocen la palabra de la gente') + (s.custom ? '' : ' · su palabra es de ' + (s.kc === 'misma' ? 'la misma categoría' : 'otra categoría')));
   l.push('Votación integrada: ' + (s.vote ? 'sí' : 'no'));
@@ -436,13 +436,13 @@ function renderVoto() {
   if (v.open) {
     const vista = vistaActual(), yo = vista.seat, vivos = seats().filter(x => !O.elim.has(x.id));
     if (O.elim.has(yo)) { msg.textContent = 'Estás eliminado: no puedes votar. Han votado ' + (v.voted || []).length + '.'; return; }
-    msg.textContent = 'Vota a quién eliminar' + (vista.compartido ? ' (como ' + vista.nombre + ')' : '') + '. Han votado ' + (v.voted || []).length + ' de ' + vivos.length + '.';
-    vivos.filter(x => x.id !== yo).forEach(x => {
+    msg.textContent = (v.cand ? 'Segunda vuelta por el empate: ' : '') + 'Vota a quién eliminar' + (vista.compartido ? ' (como ' + vista.nombre + ')' : '') + '. Han votado ' + (v.voted || []).length + ' de ' + vivos.length + '.';
+    vivos.filter(x => x.id !== yo && (!v.cand || v.cand.includes(x.id))).forEach(x => {
       const b = el('button', 'on-vote-btn' + (O.myVotes[yo] === x.id ? ' sel' : ''), x.nombre); b.type = 'button';
       b.addEventListener('click', () => votar(yo, x.id)); list.appendChild(b);
     });
   } else {
-    msg.textContent = v.win ? 'Más votado: ' + v.winName + '.' : 'Empate: nadie queda eliminado.';
+    msg.textContent = v.win ? (v.gracia ? 'Empate: decide el voto de gracia del Alcalde → ' : 'Más votado: ') + v.winName + '.' : (v.empate2 ? 'Empate otra vez: nadie queda eliminado.' : 'Empate: nadie queda eliminado.');
     (v.res || []).forEach(r => list.appendChild(el('div', 'on-setting', r[0] + ' — ' + r[1] + (r[1] === 1 ? ' voto' : ' votos'))));
   }
 }
@@ -461,6 +461,7 @@ function hostOnVoto(m) {
   const como = String(m.como || ''), a = String(m.a || '');
   if (seatOwner(como) !== m.de) return;
   if (!O.hostRoles[como] || O.elim.has(como) || !O.hostRoles[a] || O.elim.has(a) || a === como) return;
+  if (v.cand && !v.cand.includes(a)) return;
   O.votes[como] = a;
   const votantes = Object.keys(O.hostRoles).filter(id => { if (O.elim.has(id)) return false; const d = seatOwner(id), p = O.players.find(x => x.id === d); return d === O.uid || (p && p.conectado); });
   if (votantes.length && votantes.every(id => O.votes[id])) { hostCerrarVoto(); return; }
@@ -470,9 +471,20 @@ function hostCerrarVoto() {
   const v = voto(); if (!O.host || !v || !v.open) return;
   const cuenta = {}; Object.values(O.votes).forEach(id => { cuenta[id] = (cuenta[id] || 0) + 1; });
   const orden = Object.keys(cuenta).sort((x, y) => cuenta[y] - cuenta[x]);
-  const win = orden.length && (orden.length === 1 || cuenta[orden[0]] > cuenta[orden[1]]) ? orden[0] : null;
   const res = orden.map(id => [nombreDe(id).slice(0, 24), cuenta[id]]);
-  Transport.enviar('todos', { tipo: 'estado', vote: JSON.stringify({ id: v.id, open: false, voted: Object.keys(O.votes), res, win, winName: win ? nombreDe(win).slice(0, 24) : '' }) }).catch(errorEnvio);
+  const empatados = orden.filter(id => cuenta[id] === cuenta[orden[0]]);
+  let win = empatados.length === 1 ? empatados[0] : null, gracia = false;
+  if (!win && empatados.length > 1) {
+    // Empate: decide el voto de gracia del Alcalde (si está vivo y votó a uno de los empatados); si no, segunda vuelta entre los empatados (una sola vez).
+    const alc = state.customOn && state.alcaldePlayer ? O.order[state.alcaldePlayer - 1] : null;
+    if (alc && !O.elim.has(alc) && empatados.includes(O.votes[alc])) { win = O.votes[alc]; gracia = true; }
+    else if (!v.cand) {
+      O.votes = {};
+      Transport.enviar('todos', { tipo: 'estado', vote: JSON.stringify({ id: Date.now(), open: true, voted: [], cand: empatados, ronda: 2 }) }).catch(errorEnvio);
+      return;
+    }
+  }
+  Transport.enviar('todos', { tipo: 'estado', vote: JSON.stringify({ id: v.id, open: false, voted: Object.keys(O.votes), res, win, gracia, empate2: !win && !!v.cand, winName: win ? nombreDe(win).slice(0, 24) : '' }) }).catch(errorEnvio);
 }
 function hostCancelarVoto() { if (O.host) { O.votes = {}; Transport.enviar('todos', { tipo: 'estado', vote: null }).catch(errorEnvio); } }
 function renderEspera() {
@@ -592,7 +604,7 @@ function renderResult() {
     t.appendChild(tb); box.appendChild(t);
   }
   const k = O.pub.round + ':' + r;
-  if (O.resultShown !== k) { O.resultShown = k; vibrate([100, 50, 100, 50, 200]); sfx(r === 'civiles' ? 'win' : 'lose'); }
+  if (O.resultShown !== k) { O.resultShown = k; vibrate([100, 50, 100, 50, 200]); sfx(r === 'civiles' ? 'win' : 'lose'); if (typeof Stats !== 'undefined') Stats.ronda({ modo: ajustes().mode || 'normal', ganador: r, online: true, miRol: O.myRole ? O.myRole.role : null }); }
 }
 function renderGamePlayers() {
   const box = $('on-players'); if (!box) return;
@@ -1123,7 +1135,7 @@ bind();
 return {
   get active() { return O.active; }, get isHost() { return O.host; },
   prepareStart, onAlcaldeChosen, sendWords, dealRound,
-  hostSeat() { return O.order.indexOf(O.uid) + 1; }, _mantenimiento: mantenimiento,
+  hostSeat() { return O.order.indexOf(O.uid) + 1; }, seatId(i) { return O.order[i - 1]; }, _mantenimiento: mantenimiento,
   _O: O
 };
 })();

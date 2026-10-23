@@ -30,7 +30,8 @@ alcaldeWord: null, // palabra elegida por el alcalde
 alcaldePlayer: null, // jugador elegido como alcalde (1-based)
 alcaldeNumWords: 1, // nº de palabras definidas por el alcalde
 alcaldeHints: [], // pistas por palabra (alcalde)
-  alcaldeMode: 'random', // online: 'random' = alcalde al azar, 'host' = siempre el anfitrión
+  alcaldeMode: 'random', // 'random' = al azar, 'rotate' = sin repetir hasta que lo sean todos, 'host' = siempre el anfitrión (online)
+  alcaldeHist: { n: 0, vistos: [] }, // quién ha sido Alcalde (para 'rotate')
 esconditeKeyWritten: false,// el primer impostor ya escribió su clave
 decoyDone: {},// jugadores (no impostor inicial) que ya escribieron su palabra señuelo
 firstImpostor: null, // primer impostor en orden de turno
@@ -239,6 +240,18 @@ const i = Math.floor(Math.random() * words.length);
 return { words: [words[i]], hints: (hints && hints[i] !== undefined) ? [hints[i]] : [] };
 }
 // Si el jugador `seat` (1-based) salió impostor, lo cambia por un civil al azar y corrige el historial.
+// Alcalde según la opción: al azar, o «sin repetir» (nadie repite hasta que todos los posibles han sido Alcalde).
+function elegirAlcalde(candidatos) {
+if (state.alcaldeMode !== 'rotate') return fisherYates(candidatos)[0];
+const h = state.alcaldeHist;
+if (h.n !== state.numPlayers) { h.n = state.numPlayers; h.vistos = []; }
+const clave = i => (typeof Online !== 'undefined' && Online.active) ? Online.seatId(i) : 'p' + i;
+let libres = candidatos.filter(i => !h.vistos.includes(clave(i)));
+if (!libres.length) { h.vistos = []; libres = candidatos.slice(); }
+const elegido = fisherYates(libres)[0];
+h.vistos.push(clave(elegido));
+return elegido;
+}
 function sacarDeImpostores(set, seat, numPlayers) {
 if (!set.has(seat)) return set;
 const civiles = []; for (let i = 1; i <= numPlayers; i++) if (!set.has(i) && i !== seat) civiles.push(i);
@@ -400,8 +413,12 @@ modeEscondite.classList.remove('unavailable');
 }
 const filaAlc = $('alcalde-mode-row');
 if (filaAlc) {
-filaAlc.style.display = (state.customOn && typeof Online !== 'undefined' && Online.active && Online.isHost) ? 'block' : 'none';
-$('alc-rand').classList.toggle('selected', state.alcaldeMode !== 'host');
+const esAnf = typeof Online !== 'undefined' && Online.active && Online.isHost;
+filaAlc.style.display = state.customOn ? 'block' : 'none';
+$('alc-host').style.display = esAnf ? '' : 'none';
+if (!esAnf && state.alcaldeMode === 'host') state.alcaldeMode = 'random';
+$('alc-rand').classList.toggle('selected', state.alcaldeMode === 'random');
+$('alc-rot').classList.toggle('selected', state.alcaldeMode === 'rotate');
 $('alc-host').classList.toggle('selected', state.alcaldeMode === 'host');
 }
 document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
@@ -604,7 +621,7 @@ if (alcaldeAnfitrion) sacarDeImpostores(state.impostorSet, Online.hostSeat(), st
 if (state.customOn) {
 const nonImps = [];
 for (let i = 1; i <= state.numPlayers; i++) { if (!state.impostorSet.has(i)) nonImps.push(i); }
-state.alcaldePlayer = alcaldeAnfitrion ? Online.hostSeat() : fisherYates(nonImps)[0];
+state.alcaldePlayer = alcaldeAnfitrion ? Online.hostSeat() : elegirAlcalde(nonImps);
 state.word = null; state.category = 'Personalizada';
 state.words = []; state.playerWordIdx = {}; state.esconditeKey = null;
 state.alcaldeWord = null;
@@ -1276,6 +1293,7 @@ if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterv
 state.timerRunning = false;
 const msg = $("victory-msg");
 sfx(winner === 'civiles' ? 'win' : 'lose');
+if (typeof Stats !== 'undefined') Stats.ronda({ modo: state.gameMode, ganador: winner, online: false });
 if (winner === 'civiles') {
 msg.innerHTML = '<div class="victory-emoji">🏆</div><div class="victory-title civiles">Han ganado los Civiles</div><div class="victory-sub">Ha ganado la verdad.</div>';
 } else {
@@ -1553,3 +1571,4 @@ if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !instalada()) $('install-hi
 
 document.querySelectorAll('[data-ik]').forEach(b => b.addEventListener('click', () => { state.impKnows = b.dataset.ik === '1'; updateEscCfg(); vibrate(10); }));
 document.querySelectorAll('[data-kc]').forEach(b => b.addEventListener('click', () => { state.keyCat = b.dataset.kc; updateEscCfg(); vibrate(10); }));
+$('alc-rot').addEventListener('click', () => { state.alcaldeMode = 'rotate'; updateModeUI(); vibrate(10); });

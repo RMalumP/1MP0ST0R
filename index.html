@@ -38,9 +38,17 @@
     <div class="home-wrap">
       <button class="home-btn" id="btn-home-local"><span class="home-ico">📱</span><span class="home-title">Un solo móvil</span><span class="home-sub">Se pasa de mano en mano</span></button>
       <button class="home-btn" id="btn-home-online"><span class="home-ico">🌐</span><span class="home-title">Online</span><span class="home-sub">Cada jugador desde su móvil</span></button>
+      <button class="btn-archivo" id="btn-home-stats"><span>📊</span> Estadísticas</button>
       <button class="btn-archivo" id="btn-install" style="display:none;"><span>📲</span> Instalar la app en este móvil</button>
       <div class="on-msg" id="install-hint" style="display:none;">En iPhone: toca Compartir y «Añadir a pantalla de inicio» para instalar la app.</div>
     </div>
+  </div>
+
+  <!-- ===== ESTADÍSTICAS ===== -->
+  <div class="screen" id="screen-stats">
+    <div class="archivo-header"><button class="btn-back" id="btn-stats-back">← Inicio</button><h2>Estadísticas</h2></div>
+    <div class="section"><div id="stats-body"></div></div>
+    <button class="btn-secondary btn-ghost" id="btn-stats-reset">Borrar estadísticas</button>
   </div>
 
   <!-- ===== SCREEN 1: SETUP ===== -->
@@ -102,7 +110,7 @@
       </div>
       <div id="alcalde-mode-row" style="display:none;margin-bottom:12px;">
         <div class="multi-word-label">👑 Quién es el Alcalde</div>
-        <div class="multi-word-btns"><button class="multi-word-btn selected" id="alc-rand">Aleatorio</button><button class="multi-word-btn" id="alc-host">Siempre el anfitrión</button></div>
+        <div class="multi-word-btns"><button class="multi-word-btn selected" id="alc-rand">Aleatorio</button><button class="multi-word-btn" id="alc-rot">Sin repetir</button><button class="multi-word-btn" id="alc-host" style="display:none;">Siempre el anfitrión</button></div>
       </div>
       <div class="cat-collapsible" id="cat-collapsible">
         <div class="cat-collapsible-header" id="cat-collapsible-header">
@@ -5106,6 +5114,7 @@
 </script>
 <script src="js/script.js?v=17"></script>
 <script src="js/editor.js?v=1"></script>
+<script src="js/stats.js?v=1"></script>
 <script src="js/transport.js?v=17"></script>
 <script src="js/online.js?v=17"></script>
 </body>

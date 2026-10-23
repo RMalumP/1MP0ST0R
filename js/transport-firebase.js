@@ -144,7 +144,7 @@ function suscribir() {
   escuchar(R(s.roomId, 'meta'), snap => {
     if (sala !== s) return;
     if (!snap.exists() || snap.val().session !== s.session) { emitir({ tipo: 'sala-cerrada' }); return; }
-    if (s.hostUid !== snap.val().host) { s.hostUid = snap.val().host; s.esHost = s.hostUid === uid; emitirJugadores(); emitir({ tipo: 'anfitrion', esAnfitrion: s.esHost }); }
+    if (s.hostUid !== snap.val().host) { s.hostUid = snap.val().host; s.esHost = s.hostUid === uid; emitirJugadores(); if (s.esHost) recordarSala(s.roomId); emitir({ tipo: 'anfitrion', esAnfitrion: s.esHost }); }
   });
   escuchar(R(s.roomId, 'players'), snap => {
     if (sala !== s) return;
@@ -196,8 +196,10 @@ async function crearSala(nombre, password, nombreJugador) {
       await set(R(roomId, 'state'), { phase: 'lobby', round: 0 });
     }
   } catch (e) { throw traducir(e); }
+  recordarSala(roomId);
   const info = await entrar(roomId, session, uid, nombreJugador.trim());
   info.reanudada = reanudada;
+  limpiarSalasViejas();
   return info;
 }
 async function unirse(nombre, password, nombreJugador) {
@@ -226,6 +228,7 @@ async function unirse(nombre, password, nombreJugador) {
   if (vivos.some(([id, v]) => id !== uid && norm(v.name) === norm(nombreJugador))) throw errApp('nombre-repetido', 'Ya hay un jugador con ese nombre en la sala. Elige otro.');
   const info = await entrar(roomId, meta.session, meta.host, nombreJugador.trim());
   info.reanudada = yaDentro;
+  limpiarSalasViejas();
   return info;
 }
 // Volver a una sala tras recargar la página (sin contraseña: se usa el ID guardado en este dispositivo).
@@ -298,8 +301,39 @@ async function cerrarSala() {
   if (!sala) return;
   if (!sala.esHost) return salir();
   const s = sala; desuscribir(s);
-  for (const parte of ['inbox', 'roles', 'state', 'beat', 'meta']) { try { await remove(R(s.roomId, parte)); } catch (e) { console.warn('cerrarSala', parte, e); } }
+  await borrarSala(s.roomId);
   await salir();
+}
+// Borra la sala entera. El orden importa por las reglas: la meta (que dice quién es el anfitrión) va la última y el latido se borra
+// mientras mi ficha de jugador aún existe. Las fichas de los demás las borra el anfitrión antes de borrar la meta.
+async function borrarSala(roomId) {
+  for (const parte of ['inbox', 'roles', 'state', 'beat']) { try { await remove(R(roomId, parte)); } catch (e) { console.warn('borrarSala', parte, e && e.message); } }
+  try {
+    const otros = (await get(R(roomId, 'players'))).val() || {}, upd = {};
+    Object.keys(otros).forEach(id => { if (id !== uid) upd['players/' + id] = null; });
+    if (Object.keys(upd).length) await update(R(roomId), upd);
+  } catch (e) { console.warn('borrarSala jugadores', e && e.message); }
+  try { await remove(R(roomId, 'meta')); } catch (e) { console.warn('borrarSala meta', e && e.message); }
+  try { await remove(R(roomId, 'players', uid)); } catch (e) { /* nada */ }
+}
+// Salas que he creado y dejé abandonadas: al volver a abrir el juego se borran (no hay servidor que lo haga por nosotros).
+const SALAS_KEY = 'impostor.misSalas';
+function misSalas() { try { const v = JSON.parse(localStorage.getItem(SALAS_KEY)); return Array.isArray(v) ? v.filter(x => /^[0-9a-f]{64}$/.test(x)) : []; } catch (e) { return []; } }
+function guardarMisSalas(l) { try { localStorage.setItem(SALAS_KEY, JSON.stringify([...new Set(l)].slice(-10))); } catch (e) { /* nada */ } }
+function recordarSala(roomId) { guardarMisSalas(misSalas().concat(roomId)); }
+function olvidarSala(roomId) { guardarMisSalas(misSalas().filter(x => x !== roomId)); }
+async function limpiarSalasViejas() {
+  const actual = sala && sala.roomId;
+  for (const id of misSalas()) {
+    if (id === actual) continue;
+    try {
+      const m = (await conTiempo(get(R(id, 'meta')), T_RED, 'x')).val();
+      if (!m || m.host !== uid) { olvidarSala(id); continue; }
+      const beat = (await conTiempo(get(R(id, 'beat')), T_RED, 'x')).val();
+      const ref0 = typeof beat === 'number' ? beat : Number(m.lastActive) || 0;
+      if (Date.now() + offsetMs - ref0 > SALA_LIBRE_MS) { await borrarSala(id); olvidarSala(id); console.info('Sala abandonada borrada'); }
+    } catch (e) { /* se reintentará la próxima vez */ }
+  }
 }
 // Comprobación que usa el selector de transporte: inicio de sesión anónimo + una escritura de prueba.
 async function probar() {
