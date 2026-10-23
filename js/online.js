@@ -1173,6 +1173,8 @@ function bind() {
   $('on-btn-vote-elim').addEventListener('click', () => { const v = voto(); if (v && v.win) hostVerRol(v.win); });
   $('on-btn-propose').addEventListener('click', enviarPropuesta);
   $('on-btn-share').addEventListener('click', hostCompartir);
+  $('on-lobby-share').addEventListener('click', hostCompartir);
+  $('on-lobby-qr').addEventListener('click', hostMostrarQR);
   $('on-pass').addEventListener('input', fuerzaClave);
   $('on-menu-detail-btn').addEventListener('click', () => { const d = $('on-menu-detail'); d.style.display = d.style.display === 'block' ? 'none' : 'block'; });
   $('on-btn-takeover').addEventListener('click', tomarSala);

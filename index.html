@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=19">
+<link rel="stylesheet" href="css/styles.css?v=21">
 </head>
 <body>
 <div class="app">
@@ -56,9 +56,13 @@
     <button class="btn-back local-only" id="btn-setup-home" style="margin-bottom:12px;">‹ Inicio</button>
     <div id="online-host-panel" class="section on-host-panel" style="display:none;">
       <div class="section-title">🌐 Sala online: <span id="on-host-room"></span> <span class="on-chip" id="on-host-transport" style="display:none;"></span></div>
+      <div class="timer-controls" style="margin:0 0 8px;">
+        <button class="btn-secondary btn-mini" id="on-btn-share" style="margin-top:0;font-size:1rem;">📨 Compartir sala</button>
+        <button class="btn-secondary btn-mini" id="on-btn-qr" style="margin-top:0;font-size:1rem;">📱 Código QR</button>
+      </div>
       <div class="on-warn" id="on-host-warn" style="display:none;"></div>
-      <button class="btn-secondary btn-ghost" id="on-btn-bg" style="margin-top:0;margin-bottom:8px;font-size:.95rem;">🔒 Seguir activo con la pantalla bloqueada</button>
-      <button class="btn-secondary btn-ghost" id="on-btn-wake" style="display:none;margin-top:0;margin-bottom:8px;">☀️ Mantener la pantalla encendida</button>
+      <button class="btn-secondary btn-ghost btn-mini" id="on-btn-bg" style="margin-top:0;margin-bottom:8px;font-size:.95rem;">🔒 Seguir activo con la pantalla bloqueada</button>
+      <button class="btn-secondary btn-ghost btn-mini" id="on-btn-wake" style="display:none;margin-top:0;margin-bottom:8px;">☀️ Mantener la pantalla encendida</button>
       <div class="on-msg" id="on-host-msg"></div>
       <div class="toggle-row" style="margin-bottom:6px;">
         <div class="toggle-label">🗳 Votación integrada<small>Cada jugador vota al impostor desde su móvil</small></div>
@@ -67,8 +71,6 @@
       <div id="on-host-players" class="on-players"></div>
       <div id="on-proposals" class="on-players"></div>
       <div class="on-hist" style="display:none;"></div>
-      <button class="btn-secondary" id="on-btn-share">📨 Compartir sala</button>
-      <button class="btn-secondary" id="on-btn-qr">📱 Mostrar código QR</button>
       <button class="btn-secondary btn-ghost" id="on-host-leave">Cerrar la sala</button>
     </div>
     <div class="section">
@@ -164,6 +166,20 @@
         <div class="multi-word-label">Palabras distintas</div>
         <div class="multi-word-btns" id="multi-word-btns"></div>
       </div>
+      <div class="mode-extras" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+        <div class="toggle-row">
+        <div class="toggle-label">Misiones secretas<small>Cada jugador recibe una misión (palabras y acciones) que debe cumplir sin que se note</small></div>
+        <div class="switch" id="sw-mission"></div>
+        </div>
+        <div id="mission-who-row" style="display:none;margin:2px 0 8px;">
+        <div class="multi-word-label">Reciben misión</div>
+        <div class="multi-word-btns compact"><button class="multi-word-btn selected" data-mw="todos">Todos</button><button class="multi-word-btn" data-mw="civiles">Solo civiles</button><button class="multi-word-btn" data-mw="impostores">Solo impostores</button></div>
+        </div>
+        <div class="toggle-row">
+        <div class="toggle-label">Traidor<small>Un civil secreto juega para los impostores (mín. 3 civiles)</small></div>
+        <div class="switch" id="sw-traitor"></div>
+        </div>
+      </div>
     </div>
 
     <button class="btn-primary" id="btn-start">Comenzar</button>
@@ -217,18 +233,6 @@
           <div class="toggle-row">
             <div class="toggle-label">Vibración<small>Feedback háptico en el móvil</small></div>
             <div class="switch on" id="sw-vibrate"></div>
-          </div>
-          <div class="toggle-row">
-            <div class="toggle-label">Misiones secretas<small>Cada jugador recibe una misión (palabras y acciones) que debe cumplir sin que se note</small></div>
-            <div class="switch" id="sw-mission"></div>
-          </div>
-          <div id="mission-who-row" style="display:none;margin:2px 0 8px;">
-            <div class="multi-word-label">Reciben misión</div>
-            <div class="multi-word-btns compact"><button class="multi-word-btn selected" data-mw="todos">Todos</button><button class="multi-word-btn" data-mw="civiles">Solo civiles</button><button class="multi-word-btn" data-mw="impostores">Solo impostores</button></div>
-          </div>
-          <div class="toggle-row">
-            <div class="toggle-label">Traidor<small>Un civil secreto juega para los impostores (mín. 3 civiles)</small></div>
-            <div class="switch" id="sw-traitor"></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-label">Sonido<small>Efectos al revelar roles, eliminar y ganar</small></div>
@@ -365,6 +369,10 @@
     <div class="section">
       <div class="section-title">Sala: <span id="on-lobby-room"></span> <span class="on-chip" id="on-lobby-transport" style="display:none;"></span></div>
       <div class="on-msg" id="on-lobby-msg"></div>
+      <div class="timer-controls" style="margin:6px 0 8px;">
+        <button class="btn-secondary btn-mini" id="on-lobby-share" style="margin-top:0;font-size:1rem;">📨 Compartir sala</button>
+        <button class="btn-secondary btn-mini" id="on-lobby-qr" style="margin-top:0;font-size:1rem;">📱 Código QR</button>
+      </div>
       <div id="on-lobby-players" class="on-players"></div>
     </div>
     <div class="section">
@@ -458,12 +466,12 @@
     <div id="load-feedback" style="display:none; text-align:center; font-size:0.78rem; color:var(--blue); margin-bottom:10px; letter-spacing:0.1em;"></div>
     <div class="on-msg" id="archivo-lista-estado" style="margin:0 0 8px;"></div>
     <div class="timer-controls" style="margin:0 0 10px;">
-      <button class="btn-secondary btn-ghost" id="editor-undo" title="Deshacer el último cambio" style="margin-top:0;font-size:1rem;">↶ Deshacer</button>
-      <button class="btn-secondary btn-ghost" id="btn-restore-seed" title="Volver a la lista original" style="margin-top:0;font-size:1rem;">↺ Lista de serie</button>
+      <button class="btn-secondary btn-ghost btn-mini" id="editor-undo" title="Deshacer el último cambio" style="margin-top:0;font-size:1rem;">↶ Deshacer</button>
+      <button class="btn-secondary btn-ghost btn-mini" id="btn-restore-seed" title="Volver a la lista original" style="margin-top:0;font-size:1rem;">↺ Lista de serie</button>
     </div>
     <div class="timer-controls" style="margin:0 0 10px;">
-      <button class="btn-secondary btn-ghost" id="btn-share-list" style="margin-top:0;font-size:1rem;">📱 Compartir QR</button>
-      <button class="btn-secondary btn-ghost" id="btn-scan-list" style="margin-top:0;font-size:1rem;">📷 Escanear QR</button>
+      <button class="btn-secondary btn-ghost btn-mini" id="btn-share-list" style="margin-top:0;font-size:1rem;">📱 Compartir QR</button>
+      <button class="btn-secondary btn-ghost btn-mini" id="btn-scan-list" style="margin-top:0;font-size:1rem;">📷 Escanear QR</button>
     </div>
     <div class="on-msg" id="editor-msg" style="margin:0 0 6px;color:var(--gold);"></div>
     <input type="search" id="editor-search" class="field-inp" placeholder="Buscar categoría o palabra…" autocomplete="off" style="margin-bottom:12px;">
@@ -5145,11 +5153,11 @@
 }
 </script>
 <script src="js/misiones.js?v=1"></script>
-<script src="js/script.js?v=19"></script>
+<script src="js/script.js?v=21"></script>
 <script src="js/editor.js?v=1"></script>
 <script src="js/stats.js?v=1"></script>
 <script src="js/compartir.js?v=1"></script>
-<script src="js/transport.js?v=19"></script>
-<script src="js/online.js?v=19"></script>
+<script src="js/transport.js?v=21"></script>
+<script src="js/online.js?v=21"></script>
 </body>
 </html>

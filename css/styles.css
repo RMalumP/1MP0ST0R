@@ -79,3 +79,5 @@
 .toggle-row .toggle-label small{font-size:.68rem;line-height:1.3}
 #hint-mode-row,#mission-who-row,#quick-secs-row{margin:0 0 8px}
 #escondite-config{margin-top:8px !important;padding-top:8px !important}
+
+.btn-mini{font-family:'Outfit',sans-serif !important;letter-spacing:.02em !important;font-size:.88rem !important;font-weight:600;padding:12px 8px !important}
