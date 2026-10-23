@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, quickOn: false, quickSecs: 60, hintStaged: false, wordB: null, categoryB: null, traitorOn: false, traitor: null, missionOn: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, quickOn: false, quickSecs: 60, hintStaged: false, wordB: null, categoryB: null, traitorOn: false, traitor: null, missionOn: false, missionSpicy: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -90,7 +90,7 @@ function asignarMisiones() {
 state.missions = {};
 if (!state.missionOn || typeof Misiones === 'undefined') return;
 const asientos = []; for (let i = 1; i <= state.numPlayers; i++) asientos.push({ id: i, rol: rolLocal(i) });
-state.missions = Misiones.repartir(asientos, state.missionWho, esBandos());
+state.missions = Misiones.repartir(asientos, state.missionWho, esBandos(), state.missionSpicy);
 }
 // Notas extra de la tarjeta (traidor y misión) que se añaden al final del contenido normal.
 function notasExtra(shown, p) {
@@ -552,6 +552,7 @@ document.querySelectorAll('[data-qs]').forEach(b => b.classList.toggle('selected
 document.querySelectorAll('[data-qs]').forEach(b => b.addEventListener('click', () => { state.quickSecs = Number(b.dataset.qs); updateQuickUI(); vibrate(10); }));
 bindSwitch('sw-staged', 'hintStaged', () => updateHintUI());
 bindSwitch('sw-mission', 'missionOn', () => updateMissionUI());
+bindSwitch('sw-spicy', 'missionSpicy');
 function updateMissionUI() {
 $('mission-who-row').style.display = state.missionOn ? 'block' : 'none';
 document.querySelectorAll('[data-mw]').forEach(b => b.classList.toggle('selected', b.dataset.mw === state.missionWho));
@@ -1534,7 +1535,7 @@ let misiones = null;
 if (obj.misiones !== undefined) {
 if (!obj.misiones || typeof obj.misiones !== 'object' || Array.isArray(obj.misiones)) throw new Error('"misiones" debe ser un objeto con las listas palabras, acciones, impostor y civil.');
 misiones = {};
-['palabras', 'acciones', 'impostor', 'civil'].forEach(k => {
+['palabras', 'acciones', 'impostor', 'civil', 'picante'].forEach(k => {
 if (obj.misiones[k] === undefined) return;
 if (!Array.isArray(obj.misiones[k]) || obj.misiones[k].some(x => typeof x !== 'string')) throw new Error('Misiones: la lista "' + k + '" debe ser una lista de textos.');
 misiones[k] = obj.misiones[k];

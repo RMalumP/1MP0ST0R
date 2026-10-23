@@ -155,7 +155,7 @@ function fila(cat, ci, i, rep) {
 function aviso(m) { const a = q('editor-msg'); a.textContent = m; clearTimeout(aviso._t); aviso._t = setTimeout(() => { a.textContent = ''; }, 3500); }
 
 // ---------- misiones (se guardan en el bloque «misiones» del JSON) ----------
-const GRUPOS_M = [['palabras', '🗣 Palabras (para todos)'], ['acciones', '🤸 Acciones (para todos)'], ['impostor', '🎭 Solo impostores y Traidor'], ['civil', '👤 Solo civiles']];
+const GRUPOS_M = [['palabras', '🗣 Palabras (para todos)'], ['acciones', '🤸 Acciones (para todos)'], ['impostor', '🎭 Solo impostores y Traidor'], ['civil', '👤 Solo civiles'], ['picante', '🌶 Picantes (opcionales: solo si se activan)']];
 function guardarMisiones(M) { Misiones.set(M); guardar(); }
 function renderMisiones() {
   const lista = q('editor-list'), f = norm(q('editor-search').value), M = Misiones.get(); lista.innerHTML = '';

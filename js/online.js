@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!(state.timerOn || state.quickOn), secs: state.quickOn ? state.quickSecs : state.timerSeconds, qk: state.quickOn ? state.quickSecs : 0, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!(state.voteOn || state.quickOn), hm: state.hintMode, hs: state.hintStaged ? 1 : 0, tr: state.traitorOn ? 1 : 0, mi: state.missionOn ? state.missionWho : '', ik: state.impKnows ? 1 : 0, kc: state.keyCat };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!(state.timerOn || state.quickOn), secs: state.quickOn ? state.quickSecs : state.timerSeconds, qk: state.quickOn ? state.quickSecs : 0, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!(state.voteOn || state.quickOn), hm: state.hintMode, hs: state.hintStaged ? 1 : 0, tr: state.traitorOn ? 1 : 0, mi: state.missionOn ? state.missionWho : '', mp: state.missionSpicy ? 1 : 0, ik: state.impKnows ? 1 : 0, kc: state.keyCat };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -387,7 +387,7 @@ function settingsLines() {
   if (s.mode === 'escondite') l.push('Impostores: ' + (s.ik === 0 ? 'no conocen la palabra de la gente' : 'conocen la palabra de la gente') + (s.custom ? '' : ' · su palabra es de ' + (s.kc === 'misma' ? 'la misma categoría' : 'otra categoría')));
   if (s.qk) l.push('Modo rápido: ' + s.qk + ' s por ronda');
   if (s.tr) l.push('Traidor: sí');
-  if (s.mi) l.push('Misiones secretas: ' + ({ todos: 'todos', civiles: 'solo civiles', impostores: 'solo impostores' }[s.mi] || 'sí'));
+  if (s.mi) l.push('Misiones secretas: ' + ({ todos: 'todos', civiles: 'solo civiles', impostores: 'solo impostores' }[s.mi] || 'sí') + (s.mp ? ' · con picantes 🌶' : ''));
   l.push('Votación integrada: ' + (s.vote ? 'sí' : 'no'));
   return l;
 }
