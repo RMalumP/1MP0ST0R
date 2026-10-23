@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, hintMode: 'cat', timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -57,6 +57,14 @@ function sfx(name) {
   } catch (e) { /* sin audio */ }
 }
 // Texto de la pista del impostor según el tipo elegido: categoría (general), categoría + inicial y nº de letras, o la descripción entre paréntesis de la lista.
+// Escondite: ¿los impostores ven la palabra de la gente? (opción del anfitrión) y de qué categoría sale su palabra común (la clave).
+const subImpEscondite = () => state.impKnows ? 'Conoces la palabra · Encuéntrate con tus aliados' : 'No conoces la palabra de la gente · Encuéntrate con tus aliados';
+function updateEscCfg() {
+const c = $('escondite-config'); if (!c) return;
+c.style.display = state.gameMode === 'escondite' ? 'block' : 'none';
+document.querySelectorAll('[data-ik]').forEach(b => b.classList.toggle('selected', (b.dataset.ik === '1') === state.impKnows));
+document.querySelectorAll('[data-kc]').forEach(b => b.classList.toggle('selected', b.dataset.kc === state.keyCat));
+}
 function pistaTexto(word, cat) {
 const m = String(word || '').match(/^(.*?)\s*\((.+)\)\s*$/);
 const limpia = (m ? m[1] : String(word || '')).trim(), desc = m ? m[2].trim() : '';
@@ -405,6 +413,7 @@ const isManuallyOpened = wrap && wrap.dataset.manuallyOpened === 'true';
 if (modeHasReqs && !isManuallyOpened && wrap) {
 wrap.classList.add('mode-details-open');
 }
+updateEscCfg();
 const multiCfg = $('multi-word-config');
 if (state.gameMode === 'multiple') {
 if (n >= 12) {
@@ -644,8 +653,9 @@ if (!mainWord) { err.textContent = 'No se pudo elegir una palabra.'; return; }
 // Clave secreta: otra palabra distinta, preferiblemente de otra categoría
 const remainingPool = pool.filter(w => w.word !== mainWord.word);
 if (remainingPool.length < 1) { err.textContent = 'Se necesitan al menos 2 palabras para el modo Escondite.'; return; }
-const keyWord = fisherYates(remainingPool.filter(w => w.category !== mainWord.category) || remainingPool)[0]
-               || fisherYates(remainingPool)[0];
+const mismas = remainingPool.filter(w => w.category === mainWord.category), otras = remainingPool.filter(w => w.category !== mainWord.category);
+const preferidas = state.keyCat === 'misma' ? mismas : otras;
+const keyWord = fisherYates(preferidas.length ? preferidas : remainingPool)[0];
 state.word = mainWord.word; state.category = mainWord.category;
 state.esconditeKey = state.customOn ? null : keyWord.word;
 state.esconditeKeyWritten = !state.customOn; state.decoyDone = {};
@@ -985,8 +995,8 @@ state.esconditeKeyWritten = true;
 vibrate(20);
 shown.innerHTML = '';
 const t2 = document.createElement('div'); t2.className = 'impostor-text'; t2.textContent = 'Eres el Impostor'; shown.appendChild(t2);
-const s2 = document.createElement('div'); s2.className = 'impostor-sub'; s2.textContent = 'Conoces la palabra · Encuéntrate con tus aliados'; shown.appendChild(s2);
-if (state.word) renderWord(state.word, shown);
+const s2 = document.createElement('div'); s2.className = 'impostor-sub'; s2.textContent = subImpEscondite(); shown.appendChild(s2);
+if (state.word && state.impKnows) renderWord(state.word, shown);
 const box2 = document.createElement('div'); box2.className = 'secret-key-box';
 const lbl2 = document.createElement('div'); lbl2.className = 'secret-key-label'; lbl2.textContent = 'Clave secreta';
 const kw2 = document.createElement('div'); kw2.className = 'secret-key-word'; kw2.textContent = val;
@@ -1011,12 +1021,12 @@ const t = document.createElement('div'); t.className = 'impostor-text'; t.textCo
 const numW = state.words.length > 1 ? state.words.length : 1;
 const s = document.createElement('div'); s.className = 'impostor-sub';
 if (state.gameMode === 'escondite') {
-s.textContent = 'Conoces la palabra · Encuéntrate con tus aliados';
+s.textContent = subImpEscondite();
 } else {
 s.textContent = numW > 1 ? `Hay ${numW} palabras distintas` : 'No conoces la palabra';
 }
 shown.appendChild(s);
-if (state.gameMode === 'escondite' && state.word) {
+if (state.gameMode === 'escondite' && state.word && state.impKnows) {
 renderWord(state.word, shown);
 }
 if (state.gameMode === 'escondite' && state.esconditeKey) {
@@ -1087,8 +1097,8 @@ const g = document.createElement('div'); g.className = 'impostor-sub'; g.style.m
 } else if (state.gameMode === 'escondite') {
 if (isImpostor) {
 const t = document.createElement('div'); t.className = 'impostor-text'; t.textContent = 'Eres el Impostor'; shown.appendChild(t);
-const s = document.createElement('div'); s.className = 'impostor-sub'; s.textContent = 'Conoces la palabra · Encuéntrate con tus aliados'; shown.appendChild(s);
-renderWord(state.word, shown);
+const s = document.createElement('div'); s.className = 'impostor-sub'; s.textContent = subImpEscondite(); shown.appendChild(s);
+if (state.impKnows) renderWord(state.word, shown);
 if (state.esconditeKey) {
 const box = document.createElement('div'); box.className = 'secret-key-box';
 const lbl = document.createElement('div'); lbl.className = 'secret-key-label'; lbl.textContent = 'Clave secreta';
@@ -1540,3 +1550,6 @@ window.addEventListener('appinstalled', () => { evInstalar = null; $('btn-instal
 $('btn-install').addEventListener('click', () => { if (!evInstalar) return; evInstalar.prompt(); evInstalar.userChoice.finally(() => { evInstalar = null; $('btn-install').style.display = 'none'; }); });
 if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !instalada()) $('install-hint').style.display = 'block';
 })();
+
+document.querySelectorAll('[data-ik]').forEach(b => b.addEventListener('click', () => { state.impKnows = b.dataset.ik === '1'; updateEscCfg(); vibrate(10); }));
+document.querySelectorAll('[data-kc]').forEach(b => b.addEventListener('click', () => { state.keyCat = b.dataset.kc; updateEscCfg(); vibrate(10); }));

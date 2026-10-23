@@ -56,6 +56,7 @@ En pantalla, «Archivo de palabras» permite **Guardar** (descarga `palabras.jso
 - **Relevo de anfitrión** (Firebase): si el anfitrión desaparece, pasa automáticamente al siguiente jugador de la lista. El anfitrión aguanta 10 minutos en segundo plano (pantalla bloqueada) antes del relevo; los jugadores sin conexión del lobby se quitan solos a los 10 minutos.
 - **Votación integrada** (opcional), **palabras propuestas** por los jugadores, **resumen final** para todos, hasta 2 invitados por móvil y orden de jugadores editable.
 - **Ronda rápida**, **historial de rondas** y **pista** con tres niveles (categoría, inicial y letras, descripción).
+- **Escondite configurable**: los impostores pueden conocer o no la palabra de la gente, y su palabra común puede ser de la misma categoría o de otra.
 - **Compartir sala** con un enlace o **código QR**; **sonidos** (se pueden apagar en Opciones); app **instalable** y modo local **sin conexión**.
 - El anfitrión puede **expulsar** a un jugador desde el panel de la sala (en el lobby).
 - Si Firebase no responde en ~5 s, el anfitrión crea la sala por PeerJS (su móvil hace de servidor: no debe cerrar ni recargar la pestaña).

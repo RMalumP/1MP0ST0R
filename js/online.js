@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : 'rand', vote: !!state.voteOn, hm: state.hintMode };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : 'rand', vote: !!state.voteOn, hm: state.hintMode, ik: state.impKnows ? 1 : 0, kc: state.keyCat };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -378,6 +378,7 @@ function settingsLines() {
   const s = ajustes(); if (!s.mode) return ['Esperando los ajustes del anfitrión…'];
   const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí (' + ({ cat: 'categoría', inicial: 'inicial y letras', desc: 'descripción' }[s.hm] || 'categoría') + ')' : 'no')];
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
+  if (s.mode === 'escondite') l.push('Impostores: ' + (s.ik === 0 ? 'no conocen la palabra de la gente' : 'conocen la palabra de la gente') + (s.custom ? '' : ' · su palabra es de ' + (s.kc === 'misma' ? 'la misma categoría' : 'otra categoría')));
   l.push('Votación integrada: ' + (s.vote ? 'sí' : 'no'));
   return l;
 }
@@ -827,8 +828,8 @@ function buildCardView(p) {
     if (isImp) {
       const numW = state.words.length > 1 ? state.words.length : 1;
       imp();
-      sub(mode === 'escondite' ? 'Conoces la palabra · Encuéntrate con tus aliados' : (numW > 1 ? 'Hay ' + numW + ' palabras distintas' : 'No conoces la palabra'));
-      if (mode === 'escondite' && state.word) it.push({ k: 'word', t: state.word });
+      sub(mode === 'escondite' ? subImpEscondite() : (numW > 1 ? 'Hay ' + numW + ' palabras distintas' : 'No conoces la palabra'));
+      if (mode === 'escondite' && state.word && state.impKnows) it.push({ k: 'word', t: state.word });
       if (mode === 'escondite') it.push({ k: 'key', l: 'Clave secreta', t: state.esconditeKey || '(el primer impostor la está escribiendo…)' });
       if (state.hintOn) hints.forEach((h, i) => { if (h) hint(numW > 1 ? 'Pista ' + (i + 1) + ' · ' + h : 'Pista · ' + h); });
     } else {
@@ -858,8 +859,8 @@ function buildCardView(p) {
     }
   } else if (mode === 'escondite') {
     if (isImp) {
-      imp(); sub('Conoces la palabra · Encuéntrate con tus aliados');
-      it.push({ k: 'word', t: state.word });
+      imp(); sub(subImpEscondite());
+      if (state.impKnows) it.push({ k: 'word', t: state.word });
       if (state.esconditeKey) it.push({ k: 'key', l: 'Clave secreta', t: state.esconditeKey });
       if (state.hintOn) hint('Pista · ' + pistaTexto(state.word, state.category));
     } else {

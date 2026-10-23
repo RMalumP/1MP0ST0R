@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=16">
+<link rel="stylesheet" href="css/styles.css?v=17">
 </head>
 <body>
 <div class="app">
@@ -140,6 +140,13 @@
         <div class="mode-details-body">
           <div id="mode-desc-box"></div>
         </div>
+      </div>
+      <div id="escondite-config" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div class="multi-word-label">Los impostores…</div>
+        <div class="multi-word-btns"><button class="multi-word-btn selected" data-ik="1">Conocen la palabra de la gente</button><button class="multi-word-btn" data-ik="0">Solo conocen la suya</button></div>
+        <div class="multi-word-label" style="margin-top:10px;">Palabra común de los impostores (la clave)</div>
+        <div class="multi-word-btns"><button class="multi-word-btn selected" data-kc="otra">De otra categoría</button><button class="multi-word-btn" data-kc="misma">De la misma categoría</button></div>
+        <div class="new-cat-hint">Con «Personalizada», la clave la escribe el primer impostor y la categoría no influye.</div>
       </div>
       <div id="multi-word-config" style="display:none;">
         <div class="multi-word-label">Palabras distintas</div>
@@ -5097,9 +5104,9 @@
   ]
 }
 </script>
-<script src="js/script.js?v=16"></script>
+<script src="js/script.js?v=17"></script>
 <script src="js/editor.js?v=1"></script>
-<script src="js/transport.js?v=16"></script>
-<script src="js/online.js?v=16"></script>
+<script src="js/transport.js?v=17"></script>
+<script src="js/online.js?v=17"></script>
 </body>
 </html>

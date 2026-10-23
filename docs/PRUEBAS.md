@@ -28,6 +28,7 @@ Usa al menos un móvil con **datos móviles** y otro con wifi. Online solo funci
 7ñ. **Ronda rápida**: botón «🔁 Otra ronda (mismos ajustes)» del anfitrión; **Historial** de rondas visible para todos (lobby y partida); **QR** de la sala en el panel del anfitrión; aviso de que el anfitrión coordina la partida y botón «Mantener la pantalla encendida».
 7o. **Errores**: los fallos de conexión muestran un mensaje corto y un botón «Ver detalles» con la causa técnica.
 7q. **Editor de palabras** (pantalla «Archivo de palabras», que es el único editor): renombra una categoría, edita una palabra y su descripción, añade varias a la vez (las repetidas se omiten), mueve una a otra categoría, pon una imagen de Commons, ↶ Deshacer, busca; recarga la página y comprueba que tu lista sigue ahí; «Restaurar lista de serie» la descarta.
+7r. **Escondite: opciones nuevas** (debajo de los modos, al elegir Escondite): «Los impostores… conocen la palabra de la gente / solo conocen la suya» y «Palabra común de los impostores (la clave): de otra categoría / de la misma categoría». Funcionan igual en local y online; con «Personalizada» la clave la escribe el primer impostor y la categoría no influye.
 8. **Eliminar / resultados**: «Ver rol» y resultados solo en el anfitrión; el aviso de eliminado sale en todos; la victoria se calcula bien.
 9. **Cronómetro**: lo controla el anfitrión; todos lo ven.
 10. **Recargar y reconectar**: recarga B en plena partida → vuelve a la sala y recupera su rol. Recarga también el anfitrión.
