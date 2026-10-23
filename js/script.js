@@ -1530,7 +1530,17 @@ seen.add(key); words.push(t);
 const images = {}; Object.keys(c.imagenes || {}).forEach(k => { images[imgNorm(k)] = c.imagenes[k].trim().replace(/^(file|archivo):/i, ''); });
 categories.push({ id, name: nombre, words, blocked: c.bloqueada === true, noImages: c.sinImagenes === true, image: c.imagen ? c.imagen.trim().replace(/^(file|archivo):/i, '') : '', images, unsorted: false });
 });
-return { categories, dupCount, dupInfo };
+let misiones = null;
+if (obj.misiones !== undefined) {
+if (!obj.misiones || typeof obj.misiones !== 'object' || Array.isArray(obj.misiones)) throw new Error('"misiones" debe ser un objeto con las listas palabras, acciones, impostor y civil.');
+misiones = {};
+['palabras', 'acciones', 'impostor', 'civil'].forEach(k => {
+if (obj.misiones[k] === undefined) return;
+if (!Array.isArray(obj.misiones[k]) || obj.misiones[k].some(x => typeof x !== 'string')) throw new Error('Misiones: la lista "' + k + '" debe ser una lista de textos.');
+misiones[k] = obj.misiones[k];
+});
+}
+return { categories, dupCount, dupInfo, misiones };
 }
 function applyCategories(cats) {
 CATEGORIES = cats;
@@ -1555,7 +1565,14 @@ cat.words.forEach((w, j) => { lines.push('        ' + JSON.stringify(w) + (j < c
 lines.push('      ]');
 lines.push('    }' + (i < CATEGORIES.length - 1 ? ',' : ''));
 });
-lines.push('  ]', '}');
+const mis = (typeof Misiones !== 'undefined' && Misiones.personalizadas()) ? Misiones.get() : null;
+lines.push('  ]' + (mis ? ',' : ''));
+if (mis) {
+lines.push('  "misiones": {');
+Misiones.CLAVES.forEach((k, i, arr) => lines.push('    ' + JSON.stringify(k) + ': ' + JSON.stringify(mis[k]) + (i < arr.length - 1 ? ',' : '')));
+lines.push('  }');
+}
+lines.push('}');
 return lines.join('\n') + '\n';
 }
 function saveWordsJson(feedbackId) {
@@ -1593,6 +1610,7 @@ showLoadFeedback('No se cargó: ' + msg + ' Se mantiene la lista actual.', 'erro
 return;
 }
 applyCategories(result.categories);
+if (typeof Misiones !== 'undefined' && result.misiones) Misiones.set(result.misiones);
 if (typeof Editor !== "undefined") Editor.guardar();
 buildArchivoScreen(new Set());
 const nWords = result.categories.reduce((a, c) => a + c.words.length, 0);
@@ -1638,6 +1656,7 @@ try {
 if (!el) throw new Error('no se encontró el bloque "palabras-json" en index.html.');
 const res = parseWordsData(JSON.parse(el.textContent), { dedupe: false });
 applyCategories(res.categories);
+if (typeof Misiones !== 'undefined') Misiones.set(res.misiones || null);
 ok = true;
 if (res.dupCount > 0) console.warn('Palabras repetidas en la lista de serie (revisa index.html):', res.dupInfo);
 } catch (err) {

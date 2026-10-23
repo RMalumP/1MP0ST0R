@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=22">
+<link rel="stylesheet" href="css/styles.css?v=23">
 </head>
 <body>
 <div class="app">
@@ -472,15 +472,21 @@
       <button class="btn-secondary btn-ghost btn-mini" id="editor-undo" title="Deshacer el último cambio" style="margin-top:0;font-size:1rem;">↶ Deshacer</button>
       <button class="btn-secondary btn-ghost btn-mini" id="btn-restore-seed" title="Volver a la lista original" style="margin-top:0;font-size:1rem;">↺ Lista de serie</button>
     </div>
+    <div class="multi-word-btns compact" style="margin:0 0 10px;"><button class="multi-word-btn selected" id="editor-tab-pal">📝 Palabras</button><button class="multi-word-btn" id="editor-tab-mis">📋 Misiones</button></div>
+    <div id="editor-pal-only">
     <div class="timer-controls" style="margin:0 0 10px;">
       <button class="btn-secondary btn-ghost btn-mini" id="btn-share-list" style="margin-top:0;font-size:1rem;">📱 Compartir QR</button>
       <button class="btn-secondary btn-ghost btn-mini" id="btn-scan-list" style="margin-top:0;font-size:1rem;">📷 Escanear QR</button>
     </div>
+    </div>
     <div class="on-msg" id="editor-msg" style="margin:0 0 6px;color:var(--gold);"></div>
     <input type="search" id="editor-search" class="field-inp" placeholder="Buscar categoría o palabra…" autocomplete="off" style="margin-bottom:12px;">
+    <div id="editor-pal-only2">
     <div class="new-cat-section" style="padding:12px;">
       <div class="timer-edit" style="margin-top:0;"><input type="text" id="editor-new-name" maxlength="40" placeholder="Nueva categoría…"><button id="editor-new-btn">Crear</button></div>
     </div>
+    </div>
+    <div id="editor-mis-only" style="display:none;"></div>
     <div id="editor-list"></div>
   </div>
 
@@ -5156,11 +5162,11 @@
 }
 </script>
 <script src="js/misiones.js?v=1"></script>
-<script src="js/script.js?v=22"></script>
+<script src="js/script.js?v=23"></script>
 <script src="js/editor.js?v=1"></script>
 <script src="js/stats.js?v=1"></script>
 <script src="js/compartir.js?v=1"></script>
-<script src="js/transport.js?v=22"></script>
-<script src="js/online.js?v=22"></script>
+<script src="js/transport.js?v=23"></script>
+<script src="js/online.js?v=23"></script>
 </body>
 </html>

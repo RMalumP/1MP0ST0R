@@ -3,7 +3,8 @@
 const Editor = (function () {
 'use strict';
 const KEY = 'impostor.lista.v1', PAGE = 40, MAX_UNDO = 25;
-const undo = [], abiertas = new Set(), pagina = {};
+const undo = [], abiertas = new Set(), pagina = {}, abiertasM = new Set(['palabras']);
+let vista = 'palabras';
 let guardarT = null;
 const q = id => document.getElementById(id);
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -29,6 +30,7 @@ function cargarGuardada() {
   try {
     const d = JSON.parse(raw), r = parseWordsData(JSON.parse(d.json), { dedupe: false });
     applyCategories(r.categories);
+    Misiones.set(r.misiones || null);
     const b = q('archivo-lista-estado');
     if (b) b.textContent = 'Usando tu lista guardada en este navegador' + (d.firma !== firmaSerie() ? ' (la lista de serie ha cambiado desde entonces: pulsa «Restaurar lista de serie» para usar la nueva)' : '') + '.';
     return true;
@@ -36,11 +38,11 @@ function cargarGuardada() {
 }
 
 // ---------- deshacer ----------
-const plano = () => JSON.stringify(CATEGORIES.map(c => ({ id: c.id, name: c.name, words: c.words.slice(), blocked: !!c.blocked, noImages: !!c.noImages, image: c.image || '', images: Object.assign({}, c.images || {}) })));
+const plano = () => JSON.stringify({ c: CATEGORIES.map(c => ({ id: c.id, name: c.name, words: c.words.slice(), blocked: !!c.blocked, noImages: !!c.noImages, image: c.image || '', images: Object.assign({}, c.images || {}) })), m: Misiones.get() });
 function snap() { undo.push(plano()); if (undo.length > MAX_UNDO) undo.shift(); q('editor-undo').disabled = false; }
 function deshacer() {
   const s = undo.pop(); if (!s) return;
-  CATEGORIES = JSON.parse(s).map(c => Object.assign(c, { unsorted: false }));
+  const o = JSON.parse(s); CATEGORIES = o.c.map(c => Object.assign(c, { unsorted: false })); Misiones.set(o.m);
   const ids = new Set(CATEGORIES.map(c => c.id)); [...state.selectedCats].forEach(id => { if (!ids.has(id)) state.selectedCats.delete(id); });
   buildCatGrid(); updateAllBtn(); render(); guardar(); vibrate(15);
   q('editor-undo').disabled = undo.length === 0;
@@ -50,6 +52,11 @@ function cambio(opts) { guardar(); if (opts && opts.grid) { buildCatGrid(); upda
 // ---------- pintado ----------
 function repetidas(cat) { const v = new Map(); cat.words.forEach(w => { const k = clave(w); v.set(k, (v.get(k) || 0) + 1); }); return v; }
 function render() {
+  q('editor-pal-only').style.display = q('editor-pal-only2').style.display = vista === 'palabras' ? '' : 'none';
+  q('editor-mis-only').style.display = vista === 'misiones' ? '' : 'none';
+  q('editor-tab-pal').classList.toggle('selected', vista === 'palabras'); q('editor-tab-mis').classList.toggle('selected', vista === 'misiones');
+  q('editor-search').placeholder = vista === 'misiones' ? 'Buscar misión…' : 'Buscar categoría o palabra…';
+  if (vista === 'misiones') { renderMisiones(); return; }
   const lista = q('editor-list'), f = norm(q('editor-search').value); lista.innerHTML = '';
   let visibles = 0;
   CATEGORIES.forEach((cat, ci) => {
@@ -147,6 +154,42 @@ function fila(cat, ci, i, rep) {
 }
 function aviso(m) { const a = q('editor-msg'); a.textContent = m; clearTimeout(aviso._t); aviso._t = setTimeout(() => { a.textContent = ''; }, 3500); }
 
+// ---------- misiones (se guardan en el bloque «misiones» del JSON) ----------
+const GRUPOS_M = [['palabras', '🗣 Palabras (para todos)'], ['acciones', '🤸 Acciones (para todos)'], ['impostor', '🎭 Solo impostores y Traidor'], ['civil', '👤 Solo civiles']];
+function guardarMisiones(M) { Misiones.set(M); guardar(); }
+function renderMisiones() {
+  const lista = q('editor-list'), f = norm(q('editor-search').value), M = Misiones.get(); lista.innerHTML = '';
+  const info = el('div', 'on-msg', 'Cada jugador recibe una misión secreta al empezar la ronda (opción «Misiones secretas»). Las de «para todos» las pueden recibir civiles e impostores. ' + (Misiones.personalizadas() ? 'Estás usando tus propias misiones (se guardan con la lista).' : 'Ahora usas las misiones de serie.'));
+  info.style.marginBottom = '10px'; lista.appendChild(info);
+  const rest = el('button', 'btn-secondary btn-ghost btn-mini', '↺ Restaurar todas las misiones de serie'); rest.style.margin = '0 0 12px';
+  rest.addEventListener('click', () => { if (!Misiones.personalizadas() || !confirm('¿Volver a las misiones de serie? Se pierden tus cambios (se puede deshacer con ↶).')) return; snap(); guardarMisiones(null); render(); });
+  lista.appendChild(rest);
+  GRUPOS_M.forEach(([k, titulo]) => {
+    const items = M[k], visibles = items.map((t, i) => i).filter(i => !f || norm(items[i]).includes(f));
+    if (f && !visibles.length) return;
+    const card = el('div', 'cat-card' + (abiertasM.has(k) || f ? ' open' : ''));
+    const h = el('div', 'cat-card-header'); h.append(el('span', 'cat-card-name', titulo), el('span', 'cat-card-count', String(items.length)), el('span', 'cat-card-chevron', '▼'));
+    h.addEventListener('click', () => { if (abiertasM.has(k)) abiertasM.delete(k); else abiertasM.add(k); render(); }); card.appendChild(h);
+    if (card.classList.contains('open')) {
+      const b = el('div', 'cat-card-body'); b.style.padding = '12px';
+      visibles.forEach(i => {
+        const r = el('div', 'ed-row'); r.style.marginBottom = '6px';
+        const inp = el('input', 'field-inp'); inp.value = items[i]; inp.maxLength = 160; inp.placeholder = 'Misión';
+        inp.addEventListener('change', () => { const v = inp.value.trim().slice(0, 160); if (!v) { inp.value = items[i]; return; } if (v === items[i]) return; snap(); M[k][i] = v; guardarMisiones(M); render(); });
+        const x = el('button', 'on-kick', '✕'); x.type = 'button'; x.style.marginLeft = '0';
+        x.addEventListener('click', () => { snap(); M[k].splice(i, 1); guardarMisiones(M); render(); });
+        r.append(inp, x); b.appendChild(r);
+      });
+      const add = el('div', 'timer-edit'); const ni = el('input'); ni.maxLength = 160; ni.placeholder = 'Nueva misión…'; const nb = el('button', '', 'Añadir');
+      const anadir = () => { const v = ni.value.trim().slice(0, 160); if (!v) return; if (M[k].some(t => norm(t) === norm(v))) { aviso('Esa misión ya está en la lista.'); return; } snap(); M[k].push(v); guardarMisiones(M); render(); };
+      nb.addEventListener('click', anadir); ni.addEventListener('keydown', e => { if (e.key === 'Enter') anadir(); }); add.append(ni, nb); b.appendChild(add);
+      const rk = el('button', 'btn-secondary btn-ghost btn-mini', '↺ Restaurar solo este grupo'); rk.style.marginTop = '8px';
+      rk.addEventListener('click', () => { snap(); M[k] = Misiones.serie(k); guardarMisiones(M); render(); }); b.appendChild(rk);
+      card.appendChild(b);
+    }
+    lista.appendChild(card);
+  });
+}
 // ---------- nueva categoría ----------
 function nueva() {
   const n = q('editor-new-name').value.trim(); if (!n) { aviso('Escribe un nombre.'); return; }
@@ -162,6 +205,8 @@ function enlazar() {
   q('editor-search').addEventListener('input', render);
   q('editor-new-btn').addEventListener('click', nueva);
   q('editor-undo').disabled = true;
+  q('editor-tab-pal').addEventListener('click', () => { vista = 'palabras'; q('editor-search').value = ''; render(); });
+  q('editor-tab-mis').addEventListener('click', () => { vista = 'misiones'; q('editor-search').value = ''; render(); });
 }
 cargarGuardada();
 enlazar();

@@ -46,6 +46,7 @@ Desde el móvil: «Archivo de palabras» (un único editor: renombrar, editar pa
 
 
 Se editan en el bloque `palabras-json` de `index.html`. Cada categoría tiene `id`, `nombre`, `bloqueada` (desmarcada por defecto), `sinImagenes` y `palabras` (admiten descripción entre paréntesis: `"Mercurio (planeta)"`).
+Las **misiones** se editan en la pestaña «📋 Misiones» del editor y se guardan en un bloque opcional `"misiones": { "palabras": [...], "acciones": [...], "impostor": [...], "civil": [...] }` del mismo JSON.
 Opcional por categoría: `"imagen": "Archivo.jpg"` (imagen de Wikimedia Commons para todas las palabras) o `"imagenes": { "pizza": "Pizza.jpg" }` (por palabra; la clave va en minúsculas y sin acentos). Si existe, se usa siempre y no se busca en Wikipedia.
 En pantalla, «Archivo de palabras» permite **Guardar** (descarga `palabras.json`) y **Cargar** una lista solo para ese dispositivo; en modo online solo cuenta la lista del anfitrión.
 

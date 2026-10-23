@@ -2,7 +2,7 @@
 // Se cumplen «de palabra»: nadie las comprueba, la gracia es disimular. Se reparten sin repetir dentro de la ronda mientras haya misiones.
 const Misiones = (function () {
 'use strict';
-const PALABRAS = [
+const PALABRAS_DEF = [
   'Cada vez que digas «sí», bebe un sorbo de agua.',
   'Cada vez que digas «no», bebe un sorbo de agua.',
   'Empieza cada intervención con «Bueno, bueno…».',
@@ -28,7 +28,7 @@ const PALABRAS = [
   'Evita decir «es» y «está»: busca otras formas de decirlo.',
   'Mete en una frase un animal sin que venga a cuento.'
 ];
-const ACCIONES = [
+const ACCIONES_DEF = [
   'Antes de hablar, tócate la oreja.',
   'Cruza los brazos mientras habla otra persona.',
   'Cada vez que alguien se ría, bebe un sorbo de agua.',
@@ -51,7 +51,7 @@ const ACCIONES = [
   'Mira el techo un segundo antes de contestar.',
   'Cada vez que cuenten un número, golpea suavemente la mesa ese número de veces.'
 ];
-const IMPOSTOR = [
+const IMPOSTOR_DEF = [
   'Defiende a un jugador concreto aunque nadie lo acuse.',
   'Sé el primero en acusar a alguien, con una razón inventada pero creíble.',
   'Consigue que alguien repita una palabra que has dicho tú.',
@@ -63,7 +63,7 @@ const IMPOSTOR = [
   'Pide a alguien que explique con más detalle lo que ha dicho.',
   'Intenta que te pregunten tu opinión y responde con mucha seguridad.'
 ];
-const CIVIL = [
+const CIVIL_DEF = [
   'Consigue que dos personas se pongan de acuerdo en algo.',
   'Pregunta a alguien por qué ha dicho lo que ha dicho.',
   'Pide que cada uno diga una palabra relacionada y fíjate en quién duda.',
@@ -73,11 +73,26 @@ const CIVIL = [
   'Haz que alguien repita lo que ha dicho para ver si lo cuenta igual.',
   'Defiende a alguien a quien nadie esté defendiendo (aunque no estés seguro).'
 ];
+// Listas en uso: las de serie o las personalizadas (editor de palabras, JSON). Se guardan en el JSON de la lista en el bloque «misiones».
+const CLAVES = ['palabras', 'acciones', 'impostor', 'civil'];
+const DEF = { palabras: PALABRAS_DEF, acciones: ACCIONES_DEF, impostor: IMPOSTOR_DEF, civil: CIVIL_DEF };
+const clonar = o => { const r = {}; CLAVES.forEach(k => { r[k] = o[k].slice(); }); return r; };
+let cur = clonar(DEF);
+const limpiar = l => [...new Set((Array.isArray(l) ? l : []).map(x => String(x).trim().slice(0, 160)).filter(Boolean))].slice(0, 200);
+function get() { return clonar(cur); }
+// o = { palabras, acciones, impostor, civil } (las que falten se quedan como las de serie) o null para volver a las de serie.
+function set(o) {
+  if (!o || typeof o !== 'object') { cur = clonar(DEF); return; }
+  const n = {}; CLAVES.forEach(k => { n[k] = Array.isArray(o[k]) ? limpiar(o[k]) : DEF[k].slice(); }); cur = n;
+}
+const personalizadas = () => JSON.stringify(cur) !== JSON.stringify(DEF);
+const serie = k => DEF[k].slice();
+const contar = () => CLAVES.reduce((a, k) => a + cur[k].length, 0);
 // rol: 'impostor' | 'civil' | 'traidor'; bandos: no hay impostores ni civiles, solo misiones neutras.
 function pool(rol, bandos) {
-  const base = PALABRAS.concat(ACCIONES);
+  const base = cur.palabras.concat(cur.acciones);
   if (bandos) return base;
-  return base.concat(rol === 'civil' ? CIVIL : IMPOSTOR);
+  return base.concat(rol === 'civil' ? cur.civil : cur.impostor);
 }
 // Reparte una misión a cada asiento. asientos: [{ id, rol }]; quien: 'todos' | 'civiles' | 'impostores'.
 function repartir(asientos, quien, bandos) {
@@ -85,12 +100,13 @@ function repartir(asientos, quien, bandos) {
   asientos.forEach(a => {
     const lado = a.rol === 'civil' ? 'civiles' : 'impostores';
     if (quien !== 'todos' && quien !== lado) return;
-    const p = pool(a.rol, bandos); let libres = p.filter(t => !usadas.has(t));
+    const p = pool(a.rol, bandos); if (!p.length) return;
+    let libres = p.filter(t => !usadas.has(t));
     if (!libres.length) { usadas.clear(); libres = p.slice(); }
     const t = libres[Math.floor(Math.random() * libres.length)];
     usadas.add(t); out[a.id] = t;
   });
   return out;
 }
-return { repartir, total: PALABRAS.length + ACCIONES.length + IMPOSTOR.length + CIVIL.length };
+return { repartir, get, set, personalizadas, serie, contar, CLAVES, limpiar };
 })();
