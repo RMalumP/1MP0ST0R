@@ -298,6 +298,8 @@ async function abrirComoAnfitrion(roomId, prueba, nombreJugador, snap, ice) {
   peer.on('error', e => console.warn('PeerJS:', e && (e.type || e.message)));
   peer.on('disconnected', () => { try { if (sala === s && !peer.destroyed) peer.reconnect(); } catch (e) { /* se reintenta en vigilar */ } });
   s.timers.push(setInterval(vigilar, 5000));
+  s.alSalir = () => { try { if (sala === s) { guardarSnap(); difundir({ t: 'pausa' }); } } catch (e) { /* nada */ } };
+  if (globalThis.addEventListener) globalThis.addEventListener('pagehide', s.alSalir);
   persistir();
   setTimeout(() => { if (sala === s) { difundirJug(); difundirEstado(); enviarRol(s.hostUid); } }, 0);
   return { transporte: 'peer', roomId, uid: yo.id, esAnfitrion: true, reanudada: !!snap, avisos: ice.avisos.slice() };
@@ -326,15 +328,15 @@ function conectarAlHost(s, peer, hola) {
   return new Promise((resolve, reject) => {
     let fin = false;
     const conn = peer.connect(PREFIJO + s.roomId, { reliable: true, serialization: 'json' });
-    const onErr = e => { if (e && e.type === 'peer-unavailable') { cerrarConn(conn); terminar(reject, errApp('host-ausente', 'No se encuentra al anfitrión de la sala.')); } };
-    const t = setTimeout(() => { cerrarConn(conn); terminar(reject, errApp('tiempo-agotado', 'No se pudo conectar con el anfitrión (tiempo agotado). Puede que tu red o la suya bloquee las conexiones directas.')); }, T_CONN);
+    const onErr = e => { if (e && e.type === 'peer-unavailable') { terminar(reject, errApp('host-ausente', 'No se encuentra al anfitrión de la sala.')); cerrarConn(conn); } };
+    const t = setTimeout(() => { terminar(reject, errApp('tiempo-agotado', 'No se pudo conectar con el anfitrión (tiempo agotado). Puede que tu red o la suya bloquee las conexiones directas.')); cerrarConn(conn); }, T_CONN);
     function terminar(fn, v) { if (fin) return; fin = true; clearTimeout(t); try { peer.removeListener('error', onErr); } catch (e) { /* nada */ } fn(v); }
     peer.on('error', onErr);
     conn.on('open', () => { try { conn.send(hola); } catch (e) { terminar(reject, traducirPeerError(e)); } });
     conn.on('data', d => {
       if (!fin) {
         if (d && d.t === 'ok') terminar(resolve, { conn, ok: d });
-        else if (d && d.t === 'no') { cerrarConn(conn); terminar(reject, errMotivo(d)); }
+        else if (d && d.t === 'no') { terminar(reject, errMotivo(d)); cerrarConn(conn); }
         return;
       }
       alDatoJugador(s, conn, d);
@@ -352,6 +354,7 @@ function alDatoJugador(s, conn, d) {
     case 'rol': emitir(d.rol ? { tipo: 'rol', ...d.rol } : { tipo: 'rol', vacio: true }); break;
     case 'pong': muestraReloj(d.h); break;
     case 'cerrada': cierreRemoto(s); break;
+    case 'pausa': perdida(s); break; // el anfitrión cierra o recarga la página: se reconecta sin esperar al silencio
     case 'expulsado': if (sala === s) { sala = null; limpiar(s); emitir({ tipo: 'expulsado' }); } break;
     default: break;
   }
@@ -399,6 +402,7 @@ async function reconectar(s) {
 function limpiar(s) {
   s.cerrado = true;
   clearInterval(s.hbT); clearTimeout(s.persistT); (s.timers || []).forEach(clearInterval);
+  if (s.alSalir && globalThis.removeEventListener) globalThis.removeEventListener('pagehide', s.alSalir);
   if (s.conns) s.conns.forEach(cerrarConn);
   cerrarConn(s.conn);
   try { if (s.peer) s.peer.destroy(); } catch (e) { /* nada */ }
