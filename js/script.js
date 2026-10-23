@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, hintStaged: false, traitorOn: false, traitor: null, missionOn: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, hintStaged: false, wordB: null, categoryB: null, traitorOn: false, traitor: null, missionOn: false, missionWho: 'todos', missions: {}, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -122,6 +122,36 @@ const _wordHistory = {
 };
 
 // Elige una palabra equilibrada: rota categorías y evita repeticiones
+// ---- Bandos: dos palabras PARECIDAS de la misma categoría. Se puntúa el parecido por palabras en común del nombre y de la descripción
+// entre paréntesis (p. ej. dos personajes de «Juego de Tronos»); si no hay ninguna en común, se elige otra de la misma categoría.
+const BANDOS_STOP = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'en', 'un', 'una', 'por', 'con', 'para', 'que', 'al', 'se', 'su', 'sus', 'the', 'of', 'and']);
+function tokensBandos(w) {
+const m = String(w).match(/^(.*?)\s*\((.+)\)\s*$/), nombre = m ? m[1] : String(w), desc = m ? m[2] : '';
+const t = s => new Set(imgNorm(s).split(' ').filter(x => x.length > 2 && !BANDOS_STOP.has(x)));
+return { nombre: t(nombre), desc: t(desc), descTxt: imgNorm(desc), ini: imgNorm(nombre).charAt(0) };
+}
+function similitudBandos(a, b) {
+const comun = (x, y) => [...x].filter(k => y.has(k)).length;
+let s = 3 * comun(a.desc, b.desc) + 2 * (comun(a.desc, b.nombre) + comun(a.nombre, b.desc)) + comun(a.nombre, b.nombre);
+if (a.descTxt && a.descTxt === b.descTxt) s += 2;
+return s;
+}
+function pickBandosPair(pool) {
+const main0 = pickBalancedWord(pool); if (!main0) return null;
+const otras = pool.filter(p => imgNorm(p.word) !== imgNorm(main0.word));
+const enCat = otras.filter(p => p.category === main0.category);
+const base = enCat.length ? enCat : otras; if (!base.length) return null;
+const mejorPara = (m, lista) => { const tm = tokensBandos(m.word); let mejor = -1, cand = []; lista.forEach(p => { const s = similitudBandos(tm, tokensBandos(p.word)); if (s > mejor) { mejor = s; cand = [p]; } else if (s === mejor) cand.push(p); }); return { mejor, cand }; };
+const r0 = mejorPara(main0, base);
+if (r0.mejor > 0 || enCat.length < 3) return { a: main0, b: fisherYates(r0.cand)[0], similitud: r0.mejor };
+// La palabra elegida no tiene ninguna parecida en su categoría: se busca otra pareja de la misma categoría que sí se parezca.
+const todas = enCat.concat([main0]), pares = [];
+fisherYates(todas).slice(0, 40).forEach(m => { const tm = tokensBandos(m.word); todas.forEach(p => { if (imgNorm(p.word) === imgNorm(m.word)) return; const s = similitudBandos(tm, tokensBandos(p.word)); if (s > 0) pares.push({ m, p, s }); }); });
+if (!pares.length) return { a: main0, b: fisherYates(r0.cand)[0], similitud: 0 };
+const top = Math.max(...pares.map(x => x.s)), buenos = pares.filter(x => x.s >= Math.max(1, top / 2));
+const e = fisherYates(buenos)[0];
+return { a: e.m, b: e.p, similitud: e.s };
+}
 function pickBalancedWord(pool) {
   if (!pool || pool.length === 0) return null;
 
@@ -389,9 +419,9 @@ $('names-collapsible-header').addEventListener('click', () => {
 $('names-collapsible').classList.toggle('names-collapsible-open');
 vibrate(10);
 });
-function clampImpostors(v) { return Math.max(1, Math.min(getNumPlayers(), v || 1)); }
+function clampImpostors(v) { const n = getNumPlayers(), tope = state.gameMode === 'bandos' ? Math.max(1, Math.floor((n - 1) / 2)) : n; return Math.max(1, Math.min(tope, v || 1)); }
 function updateImpostorCap() {
-const cap = getNumPlayers();
+const cap = state.gameMode === 'bandos' ? Math.max(1, Math.floor((getNumPlayers() - 1) / 2)) : getNumPlayers();
 if (state.numImpostors > cap) setImpostors(cap);
 }
 function setImpostors(v) {
@@ -411,6 +441,11 @@ title: 'Palabras Múltiples',
 text: 'Los no-impostores se dividen en grupos, cada uno ve una palabra diferente. Los impostores solo saben cuántos grupos hay.',
 bullets: ['Requiere 8+ jugadores', 'Los grupos no saben qué ven los demás', 'El impostor intenta adivinar alguna de las palabras', 'Con 12+ jugadores puedes elegir más palabras']
 },
+bandos: {
+title: 'Bandos',
+text: 'Dos bandos con palabras parecidas de la misma categoría. Nadie sabe de qué bando es: cada uno cree que tiene la palabra «normal» y que los otros se equivocan.',
+bullets: ['Requiere 4+ jugadores', 'Los jugadores del bando B son siempre menos que los del A', 'Nadie dice su palabra: hay que descubrir quién tiene otra', 'Gana el bando que elimina al otro (el B también gana si iguala en número)']
+},
 escondite: {
 title: 'Escondite',
 text: 'Los impostores conocen la palabra común y además tienen una clave secreta para reconocerse entre ellos sin ser descubiertos.',
@@ -426,6 +461,8 @@ var cls = state.gameMode;
 box.innerHTML = '<div class="mode-desc ' + cls + '"><div class="mode-desc-title">' + d.title + '</div><div class="mode-desc-text">' + d.text + '</div><ul class="mode-desc-bullets">' + d.bullets.map(function(b){ return '<li>' + b + '</li>'; }).join('') + '</ul></div>';
 }
 function updateModeUI() {
+if (state.gameMode === 'bandos' && state.customOn) setCustomOn(false);
+const lblImp = $('lbl-impostors'); if (lblImp) lblImp.textContent = state.gameMode === 'bandos' ? 'Jugadores del bando B (los menos)' : 'Impostores';
 const n = state.numPlayers;
 const imp = state.numImpostors;
 const canMultiple = n >= 8;
@@ -553,6 +590,7 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 btn.addEventListener('click', () => {
 const mode = btn.dataset.mode;
 state.gameMode = mode;
+updateImpostorCap();
 updateModeUI();
 vibrate(15);
 });
@@ -636,6 +674,7 @@ state.alcaldePlayer = null;
 updateModeUI();
 }
 $('btn-custom').addEventListener('click', () => {
+if (state.gameMode === 'bandos') { $('setup-error').textContent = 'El modo Bandos usa las categorías: no se combina con Personalizada.'; return; }
 setCustomOn(!state.customOn);
 vibrate(20);
 });
@@ -650,6 +689,10 @@ state.numPlayers = getNumPlayers();
 // Validar requisitos del modo seleccionado
 if (state.gameMode === 'multiple' && state.numPlayers < 8) {
 err.textContent = 'El modo Múltiple requiere 8 o más jugadores.';
+return;
+}
+if (state.gameMode === 'bandos' && (state.numPlayers < 4 || state.numImpostors > Math.floor((state.numPlayers - 1) / 2))) {
+err.textContent = 'Bandos necesita 4 o más jugadores y que el bando B sea menor que el A (máx. ' + Math.max(1, Math.floor((state.numPlayers - 1) / 2)) + ' en el bando B).';
 return;
 }
 if (state.gameMode === 'escondite' && state.numImpostors < 2) {
@@ -691,6 +734,11 @@ if (state.gameMode === 'normal') {
 const chosen = pickBalancedWord(pool);
 if (!chosen) { err.textContent = 'No se pudo elegir una palabra.'; return; }
 state.word = chosen.word; state.category = chosen.category;
+state.words = []; state.playerWordIdx = {};
+} else if (state.gameMode === 'bandos') {
+const par = pickBandosPair(pool);
+if (!par) { err.textContent = 'No hay palabras suficientes para el modo Bandos.'; return; }
+state.word = par.a.word; state.category = par.a.category; state.wordB = par.b.word; state.categoryB = par.b.category;
 state.words = []; state.playerWordIdx = {};
 } else if (state.gameMode === 'multiple') {
 const n = state.multiWordCount;
@@ -1010,7 +1058,7 @@ state.revealed = false; $('reveal-shown').innerHTML = '';
 if (state.currentPlayer === state.numPlayers) state.allSeen = true;
 $('btn-go-game').style.display = (state.currentPlayer === state.numPlayers || state.allSeen) ? 'block' : 'none';
 const badge = $('mode-badge-turns');
-const modeNames = { normal: '🎭 Normal', multiple: '🔀 Múltiple', escondite: '🕵️ Escondite' };
+const modeNames = { normal: '🎭 Normal', multiple: '🔀 Múltiple', escondite: '🕵️ Escondite', bandos: '⚔️ Bandos' };
 const modeLbl = modeNames[state.gameMode] || '🎭 Normal';
 const isAlcNow = state.customOn && state.currentPlayer === state.alcaldePlayer;
 badge.innerHTML = `<span class="mode-badge ${state.gameMode || 'normal'}">${modeLbl}</span>` +
@@ -1031,6 +1079,14 @@ if (!shown.querySelector('.escondite-input-wrap')) notasExtra(shown, state.curre
 function buildRevealContentBase() {
 const isImpostor = state.impostorSet.has(state.currentPlayer);
 const shown = $('reveal-shown'); shown.innerHTML = '';
+if (state.gameMode === 'bandos') {
+const w = isImpostor ? state.wordB : state.word, c = isImpostor ? state.categoryB : state.category;
+renderWord(w, shown);
+const cl = document.createElement('div'); cl.className = 'hint-line'; cl.textContent = 'Categoría · ' + c; shown.appendChild(cl);
+const nt = document.createElement('div'); nt.className = 'impostor-sub'; nt.style.marginTop = '8px'; nt.style.fontSize = '.8rem'; nt.textContent = 'No digas tu palabra: puede que otros tengan una parecida pero distinta.'; shown.appendChild(nt);
+const im = document.createElement('div'); im.className = 'word-img-wrap'; shown.appendChild(im); fetchWordImage(w, c, im);
+return;
+}
 // Escondite con palabras personalizadas: el primer impostor escribe la clave. Para que no se note quién es, TODOS escriben una palabra
 // (los demás es un señuelo que no se usa). En el modo normal de categorías no hace falta: la clave sale de la lista.
 const modoClave = state.gameMode === 'escondite' && state.customOn;
@@ -1256,6 +1312,7 @@ $('btn-ver-resultados-victoria').addEventListener('click', () => { showResultsMo
 $('btn-end-victoria').addEventListener('click', () => { resetRound(); showScreen('screen-setup'); vibrate(30); });
 function resetRound() { if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval=null; } state.timerRunning=false; state.timerRemaining=state.timerSeconds; state.word=null; state.category=null; state.impostorSet=new Set(); state.currentPlayer=0; state.revealed=false; state.words=[]; state.wordCategories=[]; state.playerWordIdx={}; state.esconditeKey=null; state.alcaldeWord=null; state.alcaldePlayer=null; state.alcaldeNumWords=1; state.alcaldeHints=[]; state.esconditeKeyWritten=false; state.firstImpostor=null; state.allSeen=false; state.eliminated=new Set(); resetWordHistory(); }
 function getPlayerWord(playerNum) {
+if (state.gameMode === 'bandos') return (state.impostorSet.has(playerNum) ? state.wordB : state.word || '—').replace(/\s*\(.*\)$/, '').trim();
 if (state.customOn || state.gameMode === 'normal' || state.gameMode === 'escondite') {
 return state.word ? state.word.replace(/\s*\(.*\)$/, '').trim() : '—';
 }
@@ -1334,17 +1391,22 @@ showVictory('impostores');
 return;
 }
 }
+// Mensaje de victoria (Bandos usa «bando A/B»). `bandos` se indica a mano en online, donde el modo lo decide el anfitrión.
+function htmlVictoria(winner, bandos) {
+if (bandos === undefined ? esBandos() : bandos) return winner === 'civiles'
+? '<div class="victory-emoji">🅰️</div><div class="victory-title civiles">Ha ganado el bando A</div><div class="victory-sub">El bando mayoritario ha eliminado al otro.</div>'
+: '<div class="victory-emoji">🅱️</div><div class="victory-title impostores">Ha ganado el bando B</div><div class="victory-sub">Los menos han resistido hasta igualar.</div>';
+return winner === 'civiles'
+? '<div class="victory-emoji">🏆</div><div class="victory-title civiles">Han ganado los Civiles</div><div class="victory-sub">Ha ganado la verdad.</div>'
+: '<div class="victory-emoji">🐄</div><div class="victory-title impostores">Ha ganado la mentira</div><div class="victory-sub">Vergüenza para tu vaca.</div>';
+}
 function showVictory(winner) {
 if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
 state.timerRunning = false;
 const msg = $("victory-msg");
 sfx(winner === 'civiles' ? 'win' : 'lose');
 if (typeof Stats !== 'undefined') Stats.ronda({ modo: state.gameMode, ganador: winner, online: false });
-if (winner === 'civiles') {
-msg.innerHTML = '<div class="victory-emoji">🏆</div><div class="victory-title civiles">Han ganado los Civiles</div><div class="victory-sub">Ha ganado la verdad.</div>';
-} else {
-msg.innerHTML = '<div class="victory-emoji">🐄</div><div class="victory-title impostores">Ha ganado la mentira</div><div class="victory-sub">Vergüenza para tu vaca.</div>';
-}
+msg.innerHTML = htmlVictoria(winner);
 buildGamePlayersList('victoria-players-list');
 showScreen('screen-victoria');
 vibrate([100,50,100,50,200]);
@@ -1360,7 +1422,7 @@ const isElim = state.eliminated.has(i);
 const tr0 = textosRol(rolLocal(i));
 const roleClass = tr0.cls === 'impostor' ? 'role-impostor' : 'role-civil';
 const roleName = tr0.nombre;
-const word = isImp
+const word = isImp && state.gameMode !== 'bandos'
 ? (state.gameMode === 'escondite'
 ? (state.word ? state.word.replace(/\s*\(.*\)$/,'').trim() : '—') + ' / 🔑 ' + (state.esconditeKey ? state.esconditeKey.replace(/\s*\(.*\)$/,'').trim() : '—')
 : '—')

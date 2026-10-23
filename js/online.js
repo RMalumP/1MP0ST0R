@@ -5,7 +5,7 @@ const Online = (function () {
 'use strict';
 const SES_KEY = 'impostor.online.sesion', NAME_KEY = 'impostor.online.nombre', POPUP_KEY = 'impostor.online.popup';
 const SES_MAX_MS = 12 * 3600 * 1000;
-const MODOS = { normal: '🎭 Normal', multiple: '🔀 Múltiple', escondite: '🕵️ Escondite' };
+const MODOS = { normal: '🎭 Normal', multiple: '🔀 Múltiple', escondite: '🕵️ Escondite', bandos: '⚔️ Bandos' };
 const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
@@ -600,9 +600,7 @@ function renderResult() {
   const r = O.pub.result;
   if (!r) { box.className = ''; box.innerHTML = ''; return; }
   box.className = 'victory-msg';
-  box.innerHTML = r === 'civiles'
-    ? '<div class="victory-emoji">🏆</div><div class="victory-title civiles">Han ganado los Civiles</div><div class="victory-sub">Ha ganado la verdad.</div>'
-    : '<div class="victory-emoji">🐄</div><div class="victory-title impostores">Ha ganado la mentira</div><div class="victory-sub">Vergüenza para tu vaca.</div>';
+  box.innerHTML = htmlVictoria(r, bandosOnline());
   const sum = parse(O.pub.summary, null);
   if (Array.isArray(sum) && sum.length) {
     const t = el('table', 'results-table'); t.innerHTML = '<thead><tr><th>Jugador</th><th>Rol</th><th>Palabra</th></tr></thead>';
@@ -856,6 +854,7 @@ function buildCardView(p) {
   const sub = (t, f) => it.push({ k: 'sub', t, f: f ? 1 : 0 });
   const hint = t => it.push({ k: 'hint', t });
   const img = (w, c) => { if (state.imagesOn && !isCatNoPng(c)) it.push({ k: 'img', w, c }); };
+  if (mode === 'bandos') { const w = isImp ? state.wordB : state.word, c = isImp ? state.categoryB : state.category; it.push({ k: 'word', t: w }); hint('Categoría · ' + c); it.push({ k: 'sub', t: 'No digas tu palabra: puede que otros tengan una parecida pero distinta.', f: 1 }); img(w, c); return it; }
   const hints = state.alcaldeHints || [];
   const pistaItem = (w, c) => it.push(state.hintStaged ? { k: 'hintstages', l: [pistaTexto(w, c, 'cat'), pistaTexto(w, c, 'inicial'), pistaTexto(w, c, 'desc')] } : { k: 'hint', t: 'Pista · ' + pistaTexto(w, c) });
   if (state.customOn) {
@@ -907,6 +906,7 @@ function buildCardView(p) {
   return it;
 }
 function resText(i) {
+  if (state.gameMode === 'bandos') return clean(state.impostorSet.has(i) ? state.wordB : state.word);
   if (state.impostorSet.has(i)) return state.gameMode === 'escondite' ? clean(state.word) + ' / 🔑 ' + clean(state.esconditeKey) : '—';
   if (state.words && state.words.length > 1) { const x = state.playerWordIdx[i]; return x === undefined ? '—' : clean(state.words[x]); }
   return clean(state.word);
@@ -1006,7 +1006,7 @@ function registrarRonda(res) {
   O.histRound = ronda;
   const imps = Object.keys(O.hostRoles).filter(id => O.hostRoles[id].role === 'impostor').map(id => nombreDe(id).slice(0, 16));
   const pal = [...new Set(Object.keys(O.hostRoles).filter(id => O.hostRoles[id].role !== 'impostor').map(id => clean(O.hostRoles[id].res).slice(0, 24)))].slice(0, 3).join(' / ');
-  O.history.push([ronda, res, imps.join(', ').slice(0, 60), pal]);
+  O.history.push([ronda, res, imps.join(', ').slice(0, 60), pal, bandosOnline() ? 1 : 0]);
   while (O.history.length > 1 && JSON.stringify(O.history).length > 2300) O.history.shift();
   return O.history;
 }
@@ -1018,7 +1018,7 @@ function renderHistorial() {
     if (!Array.isArray(h) || !h.length) { box.style.display = 'none'; return; }
     box.style.display = 'block';
     const d = el('details'), s = el('summary', 'section-title', '📜 Historial de rondas (' + h.length + ')'); s.style.cursor = 'pointer'; d.appendChild(s);
-    h.slice().reverse().forEach(x => { if (!Array.isArray(x)) return; d.appendChild(el('div', 'on-setting', 'Ronda ' + x[0] + ' · ' + (x[1] === 'civiles' ? '🏆 Civiles' : x[1] === 'impostores' ? '🐄 Impostores' : 'Sin final') + ' · Impostor(es): ' + (x[2] || '—') + (x[3] ? ' · Palabra: ' + x[3] : ''))); });
+    h.slice().reverse().forEach(x => { if (!Array.isArray(x)) return; d.appendChild(el('div', 'on-setting', 'Ronda ' + x[0] + ' · ' + (x[1] === 'civiles' ? (x[4] ? '🅰️ Bando A' : '🏆 Civiles') : x[1] === 'impostores' ? (x[4] ? '🅱️ Bando B' : '🐄 Impostores') : 'Sin final') + ' · ' + (x[4] ? 'Bando B' : 'Impostor(es)') + ': ' + (x[2] || '—') + (x[3] ? ' · Palabra: ' + x[3] : ''))); });
     box.appendChild(d);
   });
 }
