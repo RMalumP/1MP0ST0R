@@ -70,3 +70,12 @@
 .mode-badge.bandos{background:rgba(74,158,255,.15);color:var(--blue);border:1px solid rgba(74,158,255,.4)}
 .mode-desc.bandos{border-left-color:var(--blue)}.mode-desc.bandos .mode-desc-title{color:var(--blue)}.mode-desc.bandos .mode-desc-bullets li::before{color:var(--blue)}
 .mode-btn-title{font-size:.7rem}
+
+/* Opciones: el panel se adapta a su contenido (antes se cortaba a 400px) y los selectores son más compactos */
+.collapsible-open .collapsible-body{max-height:4000px}
+.multi-word-btns.compact{gap:4px;flex-wrap:nowrap}
+.multi-word-btns.compact .multi-word-btn{padding:7px 3px;font-size:.72rem;font-weight:600;min-width:0;border-radius:8px;line-height:1.15}
+.multi-word-label{font-size:.7rem;margin-bottom:5px}
+.toggle-row .toggle-label small{font-size:.68rem;line-height:1.3}
+#hint-mode-row,#mission-who-row,#quick-secs-row{margin:0 0 8px}
+#escondite-config{margin-top:8px !important;padding-top:8px !important}

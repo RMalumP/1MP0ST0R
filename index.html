@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=18">
+<link rel="stylesheet" href="css/styles.css?v=19">
 </head>
 <body>
 <div class="app">
@@ -110,7 +110,7 @@
       </div>
       <div id="alcalde-mode-row" style="display:none;margin-bottom:12px;">
         <div class="multi-word-label">👑 Quién es el Alcalde</div>
-        <div class="multi-word-btns"><button class="multi-word-btn selected" id="alc-rand">Aleatorio</button><button class="multi-word-btn" id="alc-rot">Sin repetir</button><button class="multi-word-btn" id="alc-host" style="display:none;">Siempre el anfitrión</button></div>
+        <div class="multi-word-btns compact"><button class="multi-word-btn selected" id="alc-rand">Aleatorio</button><button class="multi-word-btn" id="alc-rot">Sin repetir</button><button class="multi-word-btn" id="alc-host" style="display:none;">Anfitrión siempre</button></div>
       </div>
       <div class="cat-collapsible" id="cat-collapsible">
         <div class="cat-collapsible-header" id="cat-collapsible-header">
@@ -154,11 +154,11 @@
         </div>
       </div>
       <div id="escondite-config" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-        <div class="multi-word-label">Los impostores…</div>
-        <div class="multi-word-btns"><button class="multi-word-btn selected" data-ik="1">Conocen la palabra de la gente</button><button class="multi-word-btn" data-ik="0">Solo conocen la suya</button></div>
-        <div class="multi-word-label" style="margin-top:10px;">Palabra común de los impostores (la clave)</div>
-        <div class="multi-word-btns"><button class="multi-word-btn selected" data-kc="otra">De otra categoría</button><button class="multi-word-btn" data-kc="misma">De la misma categoría</button></div>
-        <div class="new-cat-hint">Con «Personalizada», la clave la escribe el primer impostor y la categoría no influye.</div>
+        <div class="multi-word-label">Impostores: palabra de la gente</div>
+        <div class="multi-word-btns compact"><button class="multi-word-btn selected" data-ik="1">La conocen</button><button class="multi-word-btn" data-ik="0">No la conocen</button></div>
+        <div class="multi-word-label" style="margin-top:8px;">Su clave (palabra común)</div>
+        <div class="multi-word-btns compact"><button class="multi-word-btn selected" data-kc="otra">Otra categoría</button><button class="multi-word-btn" data-kc="misma">Misma categoría</button></div>
+        <div class="new-cat-hint" style="margin-top:6px;">Con «Personalizada» la clave la escribe el primer impostor.</div>
       </div>
       <div id="multi-word-config" style="display:none;">
         <div class="multi-word-label">Palabras distintas</div>
@@ -186,9 +186,9 @@
           </div>
           <div id="hint-mode-row" style="display:none;margin:6px 0 4px;">
             <div class="multi-word-label">Tipo de pista</div>
-            <div class="multi-word-btns">
+            <div class="multi-word-btns compact">
               <button class="multi-word-btn selected" data-hm="cat">Categoría</button>
-              <button class="multi-word-btn" data-hm="inicial">Inicial y letras</button>
+              <button class="multi-word-btn" data-hm="inicial">Inicial + letras</button>
               <button class="multi-word-btn" data-hm="desc">Descripción</button>
             </div>
           </div>
@@ -208,7 +208,7 @@
           </div>
           <div id="quick-secs-row" style="display:none;margin:2px 0 8px;">
             <div class="multi-word-label">Segundos por ronda</div>
-            <div class="multi-word-btns"><button class="multi-word-btn" data-qs="45">45</button><button class="multi-word-btn selected" data-qs="60">60</button><button class="multi-word-btn" data-qs="90">90</button></div>
+            <div class="multi-word-btns compact"><button class="multi-word-btn" data-qs="45">45</button><button class="multi-word-btn selected" data-qs="60">60</button><button class="multi-word-btn" data-qs="90">90</button></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-label">Imágenes<small>Busca imagen en Wikipedia (requiere internet, puede fallar)</small></div>
@@ -224,7 +224,7 @@
           </div>
           <div id="mission-who-row" style="display:none;margin:2px 0 8px;">
             <div class="multi-word-label">Reciben misión</div>
-            <div class="multi-word-btns"><button class="multi-word-btn selected" data-mw="todos">Todos</button><button class="multi-word-btn" data-mw="civiles">Solo civiles</button><button class="multi-word-btn" data-mw="impostores">Solo impostores</button></div>
+            <div class="multi-word-btns compact"><button class="multi-word-btn selected" data-mw="todos">Todos</button><button class="multi-word-btn" data-mw="civiles">Solo civiles</button><button class="multi-word-btn" data-mw="impostores">Solo impostores</button></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-label">Traidor<small>Un civil secreto juega para los impostores (mín. 3 civiles)</small></div>
@@ -5145,11 +5145,11 @@
 }
 </script>
 <script src="js/misiones.js?v=1"></script>
-<script src="js/script.js?v=18"></script>
+<script src="js/script.js?v=19"></script>
 <script src="js/editor.js?v=1"></script>
 <script src="js/stats.js?v=1"></script>
 <script src="js/compartir.js?v=1"></script>
-<script src="js/transport.js?v=18"></script>
-<script src="js/online.js?v=18"></script>
+<script src="js/transport.js?v=19"></script>
+<script src="js/online.js?v=19"></script>
 </body>
 </html>
