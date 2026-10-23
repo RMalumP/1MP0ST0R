@@ -50,7 +50,7 @@ function nombreDe(uid) {
 }
 function ajustes() { return parse(O.pub.settings, {}); }
 function settingsObj() {
-  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!state.voteOn, hm: state.hintMode, ik: state.impKnows ? 1 : 0, kc: state.keyCat };
+  return { mode: state.gameMode, imp: state.numImpostors, hint: !!state.hintOn, timer: !!state.timerOn, secs: state.timerSeconds, custom: !!state.customOn, multi: state.multiWordCount, alc: state.alcaldeMode === 'host' ? 'host' : state.alcaldeMode === 'rotate' ? 'rot' : 'rand', vote: !!state.voteOn, hm: state.hintMode, tr: state.traitorOn ? 1 : 0, ik: state.impKnows ? 1 : 0, kc: state.keyCat };
 }
 
 // ---------- sesión guardada (para volver tras recargar) ----------
@@ -379,6 +379,7 @@ function settingsLines() {
   const l = ['Modo: ' + (MODOS[s.mode] || s.mode) + (s.custom ? ' · 👑 Alcalde (' + (s.alc === 'host' ? 'el anfitrión' : s.alc === 'rot' ? 'sin repetir' : 'aleatorio') + ')' : ''), 'Impostores: ' + s.imp, 'Pista: ' + (s.hint ? 'sí (' + ({ cat: 'categoría', inicial: 'inicial y letras', desc: 'descripción' }[s.hm] || 'categoría') + ')' : 'no')];
   l.push('Cronómetro: ' + (s.timer ? fmtTime(s.secs) : 'no'));
   if (s.mode === 'escondite') l.push('Impostores: ' + (s.ik === 0 ? 'no conocen la palabra de la gente' : 'conocen la palabra de la gente') + (s.custom ? '' : ' · su palabra es de ' + (s.kc === 'misma' ? 'la misma categoría' : 'otra categoría')));
+  if (s.tr) l.push('Traidor: sí');
   l.push('Votación integrada: ' + (s.vote ? 'sí' : 'no'));
   return l;
 }
@@ -567,6 +568,7 @@ function renderCardView(items, box) {
       case 'key': { const k = el('div', 'secret-key-box'); k.appendChild(el('div', 'secret-key-label', it.l || 'Clave secreta')); k.appendChild(el('div', 'secret-key-word', t)); box.appendChild(k); break; }
       case 'img': { const w = el('div', 'word-img-wrap'); box.appendChild(w); fetchWordImage(String(it.w || ''), String(it.c || ''), w, true); break; }
       case 'keyinput': box.appendChild(crearEntradaClave()); break;
+      case 'traidor': box.appendChild(el('div', 'traitor-note', '🕶 Eres el Traidor: ganas si ganan los impostores. Tú no sabes quiénes son.')); break;
       default: break;
     }
   });
@@ -600,11 +602,11 @@ function renderResult() {
   const sum = parse(O.pub.summary, null);
   if (Array.isArray(sum) && sum.length) {
     const t = el('table', 'results-table'); t.innerHTML = '<thead><tr><th>Jugador</th><th>Rol</th><th>Palabra</th></tr></thead>';
-    const tb = el('tbody'); sum.forEach(x => { if (!Array.isArray(x)) return; const imp = x[1] === 'I', tr = el('tr'); const a = el('td', '', String(x[0]) + (x[3] ? ' ✕' : '')), b = el('td', imp ? 'role-impostor' : 'role-civil', imp ? 'Impostor' : 'Civil'), c = el('td', '', String(x[2] || '—')); c.style.cssText = 'color:var(--text-faded);font-size:.8rem;'; tr.append(a, b, c); tb.appendChild(tr); });
+    const tb = el('tbody'); sum.forEach(x => { if (!Array.isArray(x)) return; const tx = textosRol(x[1] === 'T' ? 'traidor' : x[1] === 'I' ? 'impostor' : 'civil', bandosOnline()), imp = tx.cls === 'impostor', tr = el('tr'); const a = el('td', '', String(x[0]) + (x[3] ? ' ✕' : '')), b = el('td', imp ? 'role-impostor' : 'role-civil', tx.nombre), c = el('td', '', String(x[2] || '—')); c.style.cssText = 'color:var(--text-faded);font-size:.8rem;'; tr.append(a, b, c); tb.appendChild(tr); });
     t.appendChild(tb); box.appendChild(t);
   }
   const k = O.pub.round + ':' + r;
-  if (O.resultShown !== k) { O.resultShown = k; vibrate([100, 50, 100, 50, 200]); sfx(r === 'civiles' ? 'win' : 'lose'); if (typeof Stats !== 'undefined') Stats.ronda({ modo: ajustes().mode || 'normal', ganador: r, online: true, miRol: O.myRole ? O.myRole.role : null }); }
+  if (O.resultShown !== k) { O.resultShown = k; vibrate([100, 50, 100, 50, 200]); sfx(r === 'civiles' ? 'win' : 'lose'); if (typeof Stats !== 'undefined') Stats.ronda({ modo: ajustes().mode || 'normal', ganador: r, online: true, miRol: O.myRole ? (O.myRole.tr ? 'traidor' : O.myRole.role) : null }); }
 }
 function renderGamePlayers() {
   const box = $('on-players'); if (!box) return;
@@ -628,13 +630,16 @@ function renderGamePlayers() {
 }
 
 // ---------- ventana "eliminado" visible en todos los móviles ----------
+const bandosOnline = () => ajustes().mode === 'bandos';
+const rolHost = info => info.traidor ? 'traidor' : info.role;
 function mostrarPopup(p) {
   cerrarPopup(false);
-  const ov = el('div', 'rol-overlay'); const imp = p.role === 'impostor';
+  const imp = p.role === 'impostor', tx = textosRol(p.role, bandosOnline());
+  const ov = el('div', 'rol-overlay');
   ov.innerHTML = '<div class="rol-card"><div class="rol-player-label">Eliminado</div><div class="rol-player-name">' + escapeHtml(p.name) + '</div>' +
-    '<div class="rol-icon">' + (imp ? '🎭' : '👤') + '</div>' +
-    '<div class="rol-verdict ' + (imp ? 'impostor' : 'civil') + '">' + (imp ? 'IMPOSTOR ELIMINADO' : 'CIVIL ELIMINADO') + '</div>' +
-    '<div class="rol-sub">' + (imp ? 'Se ha eliminado a un Impostor.<br>Se ha hecho justicia.' : 'Habéis matado un inocente.<br>Era un Civil.') + '</div>' +
+    '<div class="rol-icon">' + tx.icon + '</div>' +
+    '<div class="rol-verdict ' + tx.cls + '">' + tx.verdict + '</div>' +
+    '<div class="rol-sub">' + tx.msg + '</div>' +
     '<div class="rol-tap-hint">Toca para cerrar</div></div>';
   ov.addEventListener('click', () => cerrarPopup(true));
   document.body.appendChild(ov);
@@ -893,7 +898,11 @@ function rolDoc(i, ronda) {
   let items = buildCardView(i);
   // Escondite con Alcalde: todos escriben una palabra primero (señuelo salvo el primer impostor) para que no se sepa quién es el impostor.
   if (state.gameMode === 'escondite' && state.customOn && !(state.impostorSet.has(i) && i === state.firstImpostor)) items = [{ k: 'decoy' }, ...items];
-  return { uid, res, doc: { round: ronda, role: isImp ? 'impostor' : 'civil', card: JSON.stringify(items), res: res.slice(0, 280) } };
+  const tr = !isImp && state.traitor === i;
+  if (tr) items = [...items, { k: 'traidor' }];
+  const doc = { round: ronda, role: isImp ? 'impostor' : 'civil', card: JSON.stringify(items), res: res.slice(0, 280) };
+  if (tr) doc.tr = true;
+  return { uid, res, doc };
 }
 // Un documento por móvil: el del jugador y, si comparte móvil, el de su invitado dentro de "g".
 function ensamblarRoles(ronda) {
@@ -903,7 +912,7 @@ function ensamblarRoles(ronda) {
   Object.keys(hist).forEach(id => {
     if (!id.startsWith('g:')) return;
     const r = hist[id], u = seatOwner(id); if (!roles[u]) return;
-    (gs[u] = gs[u] || []).push({ k: Number(id.split(':')[2]), n: nombreDe(id).slice(0, 24), card: r.doc.card, r: r.doc.role, res: r.res.slice(0, 200) });
+    (gs[u] = gs[u] || []).push({ k: Number(id.split(':')[2]), n: nombreDe(id).slice(0, 24), card: r.doc.card, r: r.doc.role, res: r.res.slice(0, 200), tr: r.doc.tr ? 1 : 0 });
   });
   Object.keys(gs).forEach(u => { roles[u].g = JSON.stringify(gs[u]); });
   return { roles, hist };
@@ -913,7 +922,7 @@ function dealRound() {
   const n = O.order.length, ronda = (O.pub.round || 0) + 1;
   O.hostRoles = {};
   const { roles, hist } = ensamblarRoles(ronda);
-  Object.keys(hist).forEach(id => { O.hostRoles[id] = { role: hist[id].doc.role, res: hist[id].res, name: nombreDe(id) }; });
+  Object.keys(hist).forEach(id => { O.hostRoles[id] = { role: hist[id].doc.role, res: hist[id].res, name: nombreDe(id), traidor: !!hist[id].doc.tr }; });
   const ini = (state.customOn && state.alcaldePlayer) ? state.alcaldePlayer : Math.floor(Math.random() * n) + 1;
   O.elim = new Set(); O.timerSecs = null; O.vibSecs = -1; O.readySet = new Set(); O.readySent = -1;
   const estado = {
@@ -941,19 +950,20 @@ function hostOnClave(m) {
 function calcularGanador() {
   const ids = Object.keys(O.hostRoles);
   const impVivos = ids.filter(u => O.hostRoles[u].role === 'impostor' && !O.elim.has(u)).length;
-  const civVivos = ids.filter(u => O.hostRoles[u].role === 'civil' && !O.elim.has(u)).length;
+  const civVivos = ids.filter(u => O.hostRoles[u].role === 'civil' && !O.hostRoles[u].traidor && !O.elim.has(u)).length;
+  const trVivo = ids.filter(u => O.hostRoles[u].traidor && !O.elim.has(u)).length; // el Traidor cuenta para el bando de los impostores
   if (impVivos === 0) return 'civiles';
-  if (impVivos >= civVivos) return 'impostores';
+  if (impVivos + trVivo >= civVivos) return 'impostores';
   return null;
 }
 function hostVerRol(uid) {
   const info = O.hostRoles[uid]; if (!info || O.elim.has(uid)) return;
-  const imp = info.role === 'impostor', name = nombreDe(uid);
+  const imp = info.role === 'impostor', name = nombreDe(uid), tx = textosRol(rolHost(info), bandosOnline());
   const ov = el('div', 'rol-overlay');
   ov.innerHTML = '<div class="rol-card"><div class="rol-player-label">Jugador</div><div class="rol-player-name">' + escapeHtml(name) + '</div>' +
-    '<div class="rol-icon">' + (imp ? '🎭' : '👤') + '</div>' +
-    '<div class="rol-verdict ' + (imp ? 'impostor' : 'civil') + '">' + (imp ? 'IMPOSTOR ELIMINADO' : 'CIVIL ELIMINADO') + '</div>' +
-    '<div class="rol-sub">' + (imp ? 'Se ha eliminado a un Impostor.<br>Se ha hecho justicia.' : 'Habéis matado un inocente.<br>Era un Civil.') + '</div>' +
+    '<div class="rol-icon">' + tx.icon + '</div>' +
+    '<div class="rol-verdict ' + tx.cls + '">' + tx.verdict + '</div>' +
+    '<div class="rol-sub">' + tx.msg + '</div>' +
     '<div class="rol-tap-hint">Toca para cerrar (se avisa a todos)</div></div>';
   ov.addEventListener('click', () => { document.body.removeChild(ov); hostEliminar(uid); });
   document.body.appendChild(ov);
@@ -963,7 +973,7 @@ function hostEliminar(uid) {
   const info = O.hostRoles[uid]; if (!info || O.elim.has(uid)) return;
   O.elim.add(uid);
   const id = Math.max(Transport.ahora(), O.lastPopupId + 1); O.lastPopupId = id; O.popupSeen = Math.max(O.popupSeen, id);
-  const upd = { tipo: 'estado', eliminated: JSON.stringify([...O.elim]), popup: { id, name: nombreDe(uid).slice(0, 24), role: info.role } };
+  const upd = { tipo: 'estado', eliminated: JSON.stringify([...O.elim]), popup: { id, name: nombreDe(uid).slice(0, 24), role: rolHost(info) } };
   upd.vote = null;
   const g = calcularGanador();
   if (g) { upd.result = g; upd.phase = 'ended'; upd.summary = resumenJson(); registrarRonda(g); upd.history = historialJson(); }
@@ -993,13 +1003,13 @@ function renderHistorial() {
   });
 }
 function resumenJson() {
-  return JSON.stringify(Object.keys(O.hostRoles).map(id => [nombreDe(id).slice(0, 24), O.hostRoles[id].role === 'impostor' ? 'I' : 'C', clean(O.hostRoles[id].res).slice(0, 40), O.elim.has(id) ? 1 : 0]));
+  return JSON.stringify(Object.keys(O.hostRoles).map(id => [nombreDe(id).slice(0, 24), (O.hostRoles[id].traidor ? 'T' : O.hostRoles[id].role === 'impostor' ? 'I' : 'C'), clean(O.hostRoles[id].res).slice(0, 40), O.elim.has(id) ? 1 : 0]));
 }
 function hostResultados() {
   const ov = el('div', 'results-overlay'); let filas = '';
   Object.keys(O.hostRoles).forEach(uid => {
-    const r = O.hostRoles[uid], imp = r.role === 'impostor';
-    filas += '<tr><td>' + escapeHtml(nombreDe(uid)) + (O.elim.has(uid) ? ' <span class="elim-mark">✕</span>' : '') + '</td><td class="' + (imp ? 'role-impostor' : 'role-civil') + '">' + (imp ? 'Impostor' : 'Civil') +
+    const r = O.hostRoles[uid], tx = textosRol(rolHost(r), bandosOnline()), imp = tx.cls === 'impostor';
+    filas += '<tr><td>' + escapeHtml(nombreDe(uid)) + (O.elim.has(uid) ? ' <span class="elim-mark">✕</span>' : '') + '</td><td class="' + (imp ? 'role-impostor' : 'role-civil') + '">' + tx.nombre +
       '</td><td style="color:var(--text-faded);font-size:0.8rem;">' + escapeHtml(r.res) + '</td></tr>';
   });
   ov.innerHTML = '<div class="results-card"><button class="results-close" id="on-results-close">✕ Cerrar</button><div class="results-title">Resultados</div><table class="results-table"><thead><tr><th>Jugador</th><th>Rol</th><th>Palabra</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
@@ -1031,8 +1041,8 @@ async function recuperarRolesHost() {
   const roles = await Transport.leerRoles();
   O.hostRoles = {};
   Object.keys(roles).forEach(uid => {
-    O.hostRoles[uid] = { role: roles[uid].role, res: roles[uid].res || '—', name: nombreDe(uid) };
-    (roles[uid].g ? [].concat(parse(roles[uid].g, [])) : []).forEach(g => { if (g && g.r) O.hostRoles['g:' + uid + ':' + g.k] = { role: g.r, res: g.res || '—', name: g.n || 'Jugador' }; });
+    O.hostRoles[uid] = { role: roles[uid].role, res: roles[uid].res || '—', name: nombreDe(uid), traidor: !!roles[uid].tr };
+    (roles[uid].g ? [].concat(parse(roles[uid].g, [])) : []).forEach(g => { if (g && g.r) O.hostRoles['g:' + uid + ':' + g.k] = { role: g.r, res: g.res || '—', name: g.n || 'Jugador', traidor: !!g.tr }; });
   });
   renderTodo();
 }

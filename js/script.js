@@ -15,7 +15,7 @@ return parts;
 const state = {
 numPlayers: 4, numImpostors: 1,
 selectedCats: new Set(),
-hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
+hintOn: false, vibrateOn: true, soundOn: true, voteOn: true, traitorOn: false, traitor: null, hintMode: 'cat', impKnows: true, keyCat: 'otra', timerOn: false, timerSeconds: 180,
 currentPlayer: 0, revealed: false,
 word: null, category: null, impostorSet: new Set(),
 timerRemaining: 180, timerInterval: null, timerRunning: false,
@@ -65,6 +65,25 @@ const c = $('escondite-config'); if (!c) return;
 c.style.display = state.gameMode === 'escondite' ? 'block' : 'none';
 document.querySelectorAll('[data-ik]').forEach(b => b.classList.toggle('selected', (b.dataset.ik === '1') === state.impKnows));
 document.querySelectorAll('[data-kc]').forEach(b => b.classList.toggle('selected', b.dataset.kc === state.keyCat));
+}
+// ---- Roles: etiquetas según el modo (Bandos usa «Bando A/B») y el Traidor (un civil secreto que juega para los impostores).
+const esBandos = () => state.gameMode === 'bandos';
+function textosRol(rol, bandos) {
+if (bandos === undefined ? esBandos() : bandos) return rol === 'impostor'
+? { icon: '🅱️', cls: 'impostor', verdict: 'BANDO B ELIMINADO', msg: 'Se ha eliminado a alguien del bando B.', nombre: 'Bando B' }
+: { icon: '🅰️', cls: 'civil', verdict: 'BANDO A ELIMINADO', msg: 'Se ha eliminado a alguien del bando A.', nombre: 'Bando A' };
+if (rol === 'traidor') return { icon: '🕶', cls: 'impostor', verdict: 'TRAIDOR ELIMINADO', msg: 'Era el Traidor: jugaba con los impostores.', nombre: 'Traidor' };
+return rol === 'impostor'
+? { icon: '🎭', cls: 'impostor', verdict: 'IMPOSTOR ELIMINADO', msg: 'Se ha eliminado a un Impostor.<br>Se ha hecho justicia.', nombre: 'Impostor' }
+: { icon: '👤', cls: 'civil', verdict: 'CIVIL ELIMINADO', msg: 'Habéis matado un inocente.<br>Era un Civil.', nombre: 'Civil' };
+}
+const rolLocal = p => state.impostorSet.has(p) ? 'impostor' : (state.traitor === p ? 'traidor' : 'civil');
+// Elige al Traidor entre los civiles (no el Alcalde). Hacen falta al menos 3 civiles para que tenga sentido.
+function asignarTraidor() {
+state.traitor = null;
+if (!state.traitorOn || esBandos()) return;
+const civ = []; for (let i = 1; i <= state.numPlayers; i++) if (!state.impostorSet.has(i) && !(state.customOn && i === state.alcaldePlayer)) civ.push(i);
+if (civ.length >= 3) state.traitor = fisherYates(civ)[0];
 }
 function pistaTexto(word, cat) {
 const m = String(word || '').match(/^(.*?)\s*\((.+)\)\s*$/);
@@ -473,6 +492,7 @@ bindSwitch('sw-vibrate', 'vibrateOn');
 try { if (localStorage.getItem('impostor.sound') === '0') { state.soundOn = false; $('sw-sound').classList.remove('on'); } } catch (e) { /* nada */ }
 bindSwitch('sw-sound', 'soundOn', on => { try { localStorage.setItem('impostor.sound', on ? '1' : '0'); } catch (e) { /* nada */ } if (on) sfx('reveal'); });
 bindSwitch('sw-vote', 'voteOn');
+bindSwitch('sw-traitor', 'traitorOn');
 bindSwitch('sw-timer', 'timerOn', on => { $('timer-config').style.display = on ? 'block' : 'none'; });
 $('inp-timer').addEventListener('input', e => {
 let v = parseInt(e.target.value) || 10;
@@ -622,6 +642,7 @@ if (state.customOn) {
 const nonImps = [];
 for (let i = 1; i <= state.numPlayers; i++) { if (!state.impostorSet.has(i)) nonImps.push(i); }
 state.alcaldePlayer = alcaldeAnfitrion ? Online.hostSeat() : elegirAlcalde(nonImps);
+asignarTraidor();
 state.word = null; state.category = 'Personalizada';
 state.words = []; state.playerWordIdx = {}; state.esconditeKey = null;
 state.alcaldeWord = null;
@@ -678,6 +699,7 @@ state.esconditeKey = state.customOn ? null : keyWord.word;
 state.esconditeKeyWritten = !state.customOn; state.decoyDone = {};
 state.words = []; state.playerWordIdx = {};
 }
+asignarTraidor();
 state.firstImpostor = null;
 for (let i = 1; i <= state.numPlayers; i++) { if (state.impostorSet.has(i)) { state.firstImpostor = i; break; } }
 state.esconditeKeyWritten = false; state.decoyDone = {};
@@ -981,6 +1003,13 @@ if (match) { w.textContent = match[1].trim(); shown.appendChild(w); const d = do
 else { w.textContent = rawWord; shown.appendChild(w); }
 }
 function buildRevealContent() {
+buildRevealContentBase();
+const shown = $('reveal-shown');
+if (state.traitor === state.currentPlayer && !shown.querySelector('.traitor-note') && !shown.querySelector('.escondite-input-wrap')) {
+const n = document.createElement('div'); n.className = 'traitor-note'; n.textContent = '🕶 Eres el Traidor: ganas si ganan los impostores. Tú no sabes quiénes son.'; shown.appendChild(n);
+}
+}
+function buildRevealContentBase() {
 const isImpostor = state.impostorSet.has(state.currentPlayer);
 const shown = $('reveal-shown'); shown.innerHTML = '';
 // Escondite con palabras personalizadas: el primer impostor escribe la clave. Para que no se note quién es, TODOS escriben una palabra
@@ -1248,12 +1277,8 @@ const name = playerNames[playerNum-1] || ('Jugador ' + playerNum);
 const isImpostor = state.impostorSet.has(playerNum);
 const overlay = document.createElement('div');
 overlay.className = 'rol-overlay'; sfx('elim');
-const verdictClass = isImpostor ? 'impostor' : 'civil';
-const icon = isImpostor ? '🎭' : '👤';
-const verdict = isImpostor ? 'IMPOSTOR ELIMINADO' : 'CIVIL ELIMINADO';
-const msg = isImpostor
-? 'Se ha eliminado a un Impostor.<br>Se ha hecho justicia.'
-: 'Habéis matado un inocente.<br>Era un Civil.';
+const tx = textosRol(rolLocal(playerNum));
+const verdictClass = tx.cls, icon = tx.icon, verdict = tx.verdict, msg = tx.msg;
 overlay.innerHTML = `<div class="rol-card">
 <div class="rol-player-label">Jugador ${playerNum}</div>
 <div class="rol-player-name">${name}</div>
@@ -1275,15 +1300,16 @@ vibrate(isImpostor ? [40,30,80] : [60,20,60]);
 function checkVictory() {
 const totalImpostors = state.impostorSet.size;
 const impostorsAlive = [...state.impostorSet].filter(p => !state.eliminated.has(p)).length;
-const civiles = state.numPlayers - totalImpostors;
+const traidorVivo = state.traitor && !state.eliminated.has(state.traitor) ? 1 : 0;
+const civiles = state.numPlayers - totalImpostors - (state.traitor ? 1 : 0);
 const civilesAlive = civiles - [...Array(state.numPlayers).keys()]
 .map(i => i+1)
-.filter(p => !state.impostorSet.has(p) && state.eliminated.has(p)).length;
+.filter(p => !state.impostorSet.has(p) && p !== state.traitor && state.eliminated.has(p)).length;
 if (impostorsAlive === 0) {
 showVictory('civiles');
 return;
 }
-if (impostorsAlive >= civilesAlive) {
+if (impostorsAlive + traidorVivo >= civilesAlive) {
 showVictory('impostores');
 return;
 }
@@ -1311,8 +1337,9 @@ for (let i = 1; i <= state.numPlayers; i++) {
 const name = playerNames[i-1] || ('Jugador ' + i);
 const isImp = state.impostorSet.has(i);
 const isElim = state.eliminated.has(i);
-const roleClass = isImp ? 'role-impostor' : 'role-civil';
-const roleName = isImp ? 'Impostor' : 'Civil';
+const tr0 = textosRol(rolLocal(i));
+const roleClass = tr0.cls === 'impostor' ? 'role-impostor' : 'role-civil';
+const roleName = tr0.nombre;
 const word = isImp
 ? (state.gameMode === 'escondite'
 ? (state.word ? state.word.replace(/\s*\(.*\)$/,'').trim() : '—') + ' / 🔑 ' + (state.esconditeKey ? state.esconditeKey.replace(/\s*\(.*\)$/,'').trim() : '—')
