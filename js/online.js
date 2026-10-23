@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, stageT: null, stageShown: -1, bg: null, bgPref: true, quickPending: false, quickNext: false, quickTimer: null, quickKey: '', quickResolving: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, stageT: null, stageShown: -1, bg: null, bgPref: true, infoAbierta: false, enlaceAuto: false, quickPending: false, quickNext: false, quickTimer: null, quickKey: '', quickResolving: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -208,7 +208,11 @@ function aplicarEnlace() {
   let partes; try { partes = decodeURIComponent(m[1]).split('\n'); } catch (e) { return false; }
   if (!partes[0]) return false;
   abrirMenu(); $('on-room').value = partes[0].slice(0, 30); if (partes[1]) $('on-pass').value = partes[1].slice(0, 30);
-  fuerzaClave(); return true;
+  fuerzaClave(); O.enlaceAuto = !!partes[1];
+  // Con el enlace/QR de una sala se entra directamente: si ya hay un nombre guardado, sin pasos; si no, solo falta escribirlo (Enter).
+  if (O.enlaceAuto && $('on-name').value.trim()) setTimeout(() => conectar('unirse'), 150);
+  else if (O.enlaceAuto) { $('on-menu-error').textContent = 'Escribe tu nombre y pulsa Enter (o «Unirme a una sala») para entrar.'; setTimeout(() => $('on-name').focus(), 100); }
+  return true;
 }
 function fuerzaClave() {
   const p = $('on-pass').value, o = $('on-pass-strength'); if (!o) return;
@@ -361,11 +365,12 @@ function renderHostPanel() {
   const w = $('on-host-warn');
   const peer = O.transporte === 'peer';
   w.style.display = 'block'; w.className = 'on-warn' + (peer ? '' : ' on-info');
+  const inf = $('on-host-info'); if (inf && peer && !O.infoAbierta) { inf.open = true; O.infoAbierta = true; }
   w.textContent = peer
     ? '⚠️ Este móvil hace de servidor de la sala: no cierres ni recargues esta pestaña y no dejes que se bloquee la pantalla; si se pierde, los demás se quedan sin conexión.'
     : 'ℹ️ Eres el anfitrión: tu móvil coordina la partida. Procura no cerrar la pestaña ni bloquear la pantalla; si te desconectas más de 10 minutos, el control pasará al siguiente jugador.';
   const wk = $('on-btn-wake'); if (wk) wk.style.display = (navigator.wakeLock && !O.wake) ? 'block' : 'none';
-  const bg = $('on-btn-bg'); if (bg) bg.textContent = O.bg ? '🔒 Segundo plano activado: sigue con la pantalla bloqueada (toca para desactivar)' : '🔒 Seguir activo con la pantalla bloqueada';
+  const bg = $('on-btn-bg'); if (bg) bg.textContent = O.bg ? '🔒 Segundo plano: activado' : '🔒 Segundo plano: desactivado'; bg.title = 'Mantiene el juego activo con la pantalla bloqueada (audio silencioso). Toca para ' + (O.bg ? 'desactivarlo' : 'activarlo');
   const list = $('on-host-players'); list.innerHTML = '';
   const lobby = (O.pub.phase || 'lobby') === 'lobby';
   seats().forEach(pl => list.appendChild(chip(pl, lobby)));
@@ -1176,6 +1181,7 @@ function bind() {
   $('on-lobby-share').addEventListener('click', hostCompartir);
   $('on-lobby-qr').addEventListener('click', hostMostrarQR);
   $('on-pass').addEventListener('input', fuerzaClave);
+  $('on-name').addEventListener('keydown', e => { if (e.key === 'Enter' && O.enlaceAuto && !O.busy) conectar('unirse'); });
   $('on-menu-detail-btn').addEventListener('click', () => { const d = $('on-menu-detail'); d.style.display = d.style.display === 'block' ? 'none' : 'block'; });
   $('on-btn-takeover').addEventListener('click', tomarSala);
   $('on-btn-pass').addEventListener('click', pasarMovil);

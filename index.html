@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=21">
+<link rel="stylesheet" href="css/styles.css?v=22">
 </head>
 <body>
 <div class="app">
@@ -60,9 +60,12 @@
         <button class="btn-secondary btn-mini" id="on-btn-share" style="margin-top:0;font-size:1rem;">📨 Compartir sala</button>
         <button class="btn-secondary btn-mini" id="on-btn-qr" style="margin-top:0;font-size:1rem;">📱 Código QR</button>
       </div>
-      <div class="on-warn" id="on-host-warn" style="display:none;"></div>
-      <button class="btn-secondary btn-ghost btn-mini" id="on-btn-bg" style="margin-top:0;margin-bottom:8px;font-size:.95rem;">🔒 Seguir activo con la pantalla bloqueada</button>
-      <button class="btn-secondary btn-ghost btn-mini" id="on-btn-wake" style="display:none;margin-top:0;margin-bottom:8px;">☀️ Mantener la pantalla encendida</button>
+      <details id="on-host-info" class="on-host-info">
+        <summary>ℹ️ Información del anfitrión</summary>
+        <div class="on-warn" id="on-host-warn" style="display:none;"></div>
+        <button class="btn-ghost btn-mini btn-tiny" id="on-btn-bg">🔒 Segundo plano</button>
+        <button class="btn-ghost btn-mini btn-tiny" id="on-btn-wake" style="display:none;">☀️ Mantener la pantalla encendida</button>
+      </details>
       <div class="on-msg" id="on-host-msg"></div>
       <div class="toggle-row" style="margin-bottom:6px;">
         <div class="toggle-label">🗳 Votación integrada<small>Cada jugador vota al impostor desde su móvil</small></div>
@@ -5153,11 +5156,11 @@
 }
 </script>
 <script src="js/misiones.js?v=1"></script>
-<script src="js/script.js?v=21"></script>
+<script src="js/script.js?v=22"></script>
 <script src="js/editor.js?v=1"></script>
 <script src="js/stats.js?v=1"></script>
 <script src="js/compartir.js?v=1"></script>
-<script src="js/transport.js?v=21"></script>
-<script src="js/online.js?v=21"></script>
+<script src="js/transport.js?v=22"></script>
+<script src="js/online.js?v=22"></script>
 </body>
 </html>
