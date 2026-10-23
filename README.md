@@ -49,7 +49,7 @@ En pantalla, «Archivo de palabras» permite **Guardar** (descarga `palabras.jso
 - La sala se identifica por SHA-256(nombre + contraseña): no hay listado de salas y la contraseña nunca se guarda ni se envía.
 - El anfitrión reparte los roles; cada móvil recibe solo su tarjeta ya resuelta.
 - Un móvil puede servir para **dos jugadores** (el anfitrión pulsa «👥 +1»); ese móvil alterna las tarjetas con un botón «Pasar». El anfitrión también puede cambiar nombres (✏️).
-- **Relevo de anfitrión** (Firebase): si el anfitrión desaparece, otro jugador puede continuar la sala. Los jugadores sin conexión del lobby se quitan solos a los 3 minutos.
+- **Relevo de anfitrión** (Firebase): si el anfitrión desaparece, pasa automáticamente al siguiente jugador de la lista. Los jugadores sin conexión del lobby se quitan solos a los 3 minutos.
 - **Votación integrada** (opcional), **palabras propuestas** por los jugadores, **resumen final** para todos, hasta 2 invitados por móvil y orden de jugadores editable.
 - **Compartir sala** con un enlace; **sonidos** (se pueden apagar en Opciones); app **instalable** y modo local **sin conexión**.
 - El anfitrión puede **expulsar** a un jugador desde el panel de la sala (en el lobby).

@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, offSince: {}, hostOffSince: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -237,7 +237,7 @@ function onMsg(m) {
     case 'rol': onRol(m); break;
     case 'sala-cerrada': onSalaCerrada(); break;
     case 'expulsado': onExpulsado(); break;
-    case 'anfitrion': if (m.esAnfitrion) volverseAnfitrion(); else perderAnfitrion(); break;
+    case 'anfitrion': if (m.esAnfitrion) volverseAnfitrion(); else if (O.host) perderAnfitrion(); else { O.hostOffSince = 0; $('on-takeover-banner').style.display = 'none'; aviso('La sala tiene un nuevo anfitrión.', 5000); } break;
     case 'clave': if (O.host) hostOnClave(m); break;
     case 'palabras': if (O.host) hostOnPalabras(m); break;
     case 'listo': if (O.host) hostOnListo(m); break;
@@ -611,7 +611,7 @@ function tickTimer() {
   if (O.active && ++O.mantN % 16 === 0) mantenimiento();
 }
 // Cada ~4 s: el anfitrión quita del lobby a quien lleva 3 min sin conexión; los jugadores ofrecen tomar la sala si el anfitrión desaparece.
-const FANTASMA_MS = 180000, ANFITRION_AUSENTE_MS = 25000;
+const FANTASMA_MS = 180000, ANFITRION_AUSENTE_MS = 25000, BANNER_RELEVO_MS = 60000, REINTENTO_RELEVO_MS = 15000;
 function mantenimiento() {
   const ahora = Date.now(), lobby = (O.pub.phase || 'lobby') === 'lobby';
   if (O.host) {
@@ -629,7 +629,14 @@ function mantenimiento() {
   const hp = O.players.find(x => x.esAnfitrion);
   if (!O.host && hp && !hp.conectado) { if (!O.hostOffSince) O.hostOffSince = ahora; }
   else O.hostOffSince = 0;
-  b.style.display = (!O.host && O.hostOffSince && ahora - O.hostOffSince > ANFITRION_AUSENTE_MS && Transport.soportaTomarSala()) ? 'block' : 'none';
+  const ausente = !O.host && O.hostOffSince ? ahora - O.hostOffSince : 0;
+  // Relevo automático: pasa a ser anfitrión el primer jugador conectado de la lista (en el orden que fijó el anfitrión).
+  if (ausente > ANFITRION_AUSENTE_MS && Transport.soportaTomarSala()) {
+    const siguiente = seats().find(s => !s.guest && !s.esAnfitrion && s.conectado);
+    if (siguiente && siguiente.yo && (!O.autoRelevo || ahora - O.autoRelevo > REINTENTO_RELEVO_MS)) { O.autoRelevo = ahora; Transport.tomarSala().catch(() => { /* el anfitrión ha vuelto o ya lo tomó otro */ }); }
+  } else if (!ausente) O.autoRelevo = 0;
+  // Si el relevo automático no ocurre (el siguiente tampoco responde), cualquiera puede tomar la sala a mano.
+  b.style.display = (ausente > BANNER_RELEVO_MS && Transport.soportaTomarSala()) ? 'block' : 'none';
 }
 function tomarSala() {
   Transport.tomarSala().then(() => { $('on-takeover-banner').style.display = 'none'; }).catch(e => { aviso((e && e.message) || 'No se pudo tomar la sala.'); });
