@@ -165,5 +165,22 @@ function enlazar() {
 }
 cargarGuardada();
 enlazar();
-return { guardar, olvidar, render };
+// Fusiona categorías recibidas (por QR/enlace): si ya existe una con el mismo nombre se le añaden las palabras nuevas; si no, se crea.
+function fusionar(cats) {
+  snap(); let nuevas = 0, palabras = 0;
+  cats.forEach(c => {
+    let dest = CATEGORIES.find(x => norm(x.name) === norm(c.name));
+    if (!dest) {
+      let id = c.id || 'IMPORTADA'; while (CATEGORIES.some(x => x.id === id)) id += '_';
+      dest = { id, name: c.name, words: [], blocked: !!c.blocked, noImages: !!c.noImages, image: c.image || '', images: Object.assign({}, c.images || {}), unsorted: false };
+      CATEGORIES.push(dest); nuevas++; if (!dest.blocked) state.selectedCats.add(dest.id);
+    }
+    const ya = new Set(dest.words.map(clave));
+    c.words.forEach(w => { if (!ya.has(clave(w))) { ya.add(clave(w)); dest.words.push(w); palabras++; } });
+    Object.keys(c.images || {}).forEach(k => { dest.images = dest.images || {}; if (!dest.images[k]) dest.images[k] = c.images[k]; });
+  });
+  cambio({ grid: true }); render();
+  return { nuevas, palabras };
+}
+return { guardar, olvidar, render, fusionar };
 })();

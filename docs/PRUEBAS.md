@@ -29,6 +29,16 @@ Usa al menos un móvil con **datos móviles** y otro con wifi. Online solo funci
 7o. **Errores**: los fallos de conexión muestran un mensaje corto y un botón «Ver detalles» con la causa técnica.
 7q. **Editor de palabras** (pantalla «Archivo de palabras», que es el único editor): renombra una categoría, edita una palabra y su descripción, añade varias a la vez (las repetidas se omiten), mueve una a otra categoría, pon una imagen de Commons, ↶ Deshacer, busca; recarga la página y comprueba que tu lista sigue ahí; «Restaurar lista de serie» la descarta.
 7r. **Escondite: opciones nuevas** (debajo de los modos, al elegir Escondite): «Los impostores… conocen la palabra de la gente / solo conocen la suya» y «Palabra común de los impostores (la clave): de otra categoría / de la misma categoría». Funcionan igual en local y online; con «Personalizada» la clave la escribe el primer impostor y la categoría no influye.
+7s. **Modalidades nuevas (rama `modalidades`)** — todas son opciones apagadas por defecto:
+   - **Alcalde**: «Aleatorio», «Sin repetir» (nadie repite hasta que todos han sido Alcalde; también en local) y, online, «Siempre el anfitrión». En un empate de votación decide el **voto de gracia del Alcalde**; sin Alcalde (o si votó a otro) hay una **segunda vuelta** entre los empatados.
+   - **Traidor** (Opciones): un civil secreto que juega para los impostores (cuenta para el bando de los impostores en el empate de número). Necesita 3+ civiles; no aplica a Bandos.
+   - **Misiones secretas** (Opciones): cada jugador (todos / solo civiles / solo impostores) recibe una misión con palabras y acciones (51 misiones; sin alcohol: se bebe agua).
+   - **Pista escalonada** (online, con Pista): categoría → inicial y letras → descripción, un paso cada tercio del cronómetro (o 90 s sin cronómetro).
+   - **Bandos**: dos bandos (A mayoría, B minoría) con palabras **parecidas de la misma categoría** (se puntúa el parecido por palabras en común del nombre y de la descripción). Nadie sabe de qué bando es. No se combina con Personalizada.
+   - **Modo rápido** (Opciones, 45/60/90 s): el cronómetro arranca solo; online abre la votación al acabar el tiempo, la cierra a los 30 s, elimina al más votado, reinicia el tiempo y, si acaba la partida, empieza otra a los 12 s.
+   - **Estadísticas** (Inicio → 📊): rondas, victorias por bando, veces como impostor/civil/traidor, rondas ganadas por ti; se guardan en el navegador.
+   - **Lista por QR** (Palabras → «📱 Compartir QR» / «📷 Escanear QR»): comparte categorías por QR o enlace y las importa con la cámara (o con una foto del QR). Un QR admite unas ~200 palabras; más → comparte menos categorías.
+   - **Salas abandonadas**: al volver a abrir el juego se borran las salas que creaste y dejaste abandonadas más de 10 minutos (no hay servidor que lo haga por nosotros).
 8. **Eliminar / resultados**: «Ver rol» y resultados solo en el anfitrión; el aviso de eliminado sale en todos; la victoria se calcula bien.
 9. **Cronómetro**: lo controla el anfitrión; todos lo ven.
 10. **Recargar y reconectar**: recarga B en plena partida → vuelve a la sala y recupera su rol. Recarga también el anfitrión.

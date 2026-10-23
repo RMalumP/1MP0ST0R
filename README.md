@@ -18,6 +18,7 @@ js/online.js                Modo online: sala, lobby, reparto de roles, eliminac
 js/transport.js             Fachada de transporte: elige Firebase o PeerJS automáticamente
 js/transport-firebase.js    Transporte principal (Firebase Realtime Database + Auth anónima). Aquí va firebaseConfig
 sw.js, manifest.webmanifest, icons/  App instalable (PWA) y modo local sin conexión
+js/misiones.js, js/stats.js, js/compartir.js  Misiones secretas, estadísticas, lista por QR (js/qrcode.js MIT y js/jsqr.js Apache-2.0 se cargan solo al usarlos)
 js/transport-peer.js        Transporte de respaldo (PeerJS/WebRTC). Aquí va TURN_PROXY_URL
 firebase/database.rules.json  Reglas de seguridad de Realtime Database (se pegan en la consola de Firebase)
 cloudflare/worker.js        Worker de Cloudflare que reparte las credenciales TURN sin ponerlas en el repo
@@ -57,6 +58,7 @@ En pantalla, «Archivo de palabras» permite **Guardar** (descarga `palabras.jso
 - **Votación integrada** (opcional), **palabras propuestas** por los jugadores, **resumen final** para todos, hasta 2 invitados por móvil y orden de jugadores editable.
 - **Ronda rápida**, **historial de rondas** y **pista** con tres niveles (categoría, inicial y letras, descripción).
 - **Escondite configurable**: los impostores pueden conocer o no la palabra de la gente, y su palabra común puede ser de la misma categoría o de otra.
+- **Más modalidades** (todas opcionales): modo **Bandos**, **Traidor**, **Misiones secretas**, **Pista escalonada**, **Modo rápido**, Alcalde **sin repetir** con desempate por voto de gracia, **estadísticas** y **lista de palabras por QR** (con lector de cámara).
 - **Compartir sala** con un enlace o **código QR**; **sonidos** (se pueden apagar en Opciones); app **instalable** y modo local **sin conexión**.
 - El anfitrión puede **expulsar** a un jugador desde el panel de la sala (en el lobby).
 - Si Firebase no responde en ~5 s, el anfitrión crea la sala por PeerJS (su móvil hace de servidor: no debe cerrar ni recargar la pestaña).

@@ -2,7 +2,7 @@
 // Los archivos propios se piden primero a la red (así siempre ves la última versión) y, si no hay conexión, salen de la caché.
 // Firebase, PeerJS, Wikipedia y el Worker de Cloudflare no se tocan: van siempre directos a la red.
 const CACHE = 'impostor-v1';
-const CORE = ['./', 'index.html', 'css/styles.css', 'js/script.js', 'js/misiones.js', 'js/online.js', 'js/editor.js', 'js/stats.js', 'js/transport.js', 'favicon.svg', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CORE = ['./', 'index.html', 'css/styles.css', 'js/script.js', 'js/misiones.js', 'js/online.js', 'js/editor.js', 'js/stats.js', 'js/compartir.js', 'js/transport.js', 'favicon.svg', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(CORE.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));

@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=17">
+<link rel="stylesheet" href="css/styles.css?v=18">
 </head>
 <body>
 <div class="app">
@@ -460,6 +460,10 @@
     <div class="timer-controls" style="margin:0 0 10px;">
       <button class="btn-secondary btn-ghost" id="editor-undo" title="Deshacer el último cambio" style="margin-top:0;font-size:1rem;">↶ Deshacer</button>
       <button class="btn-secondary btn-ghost" id="btn-restore-seed" title="Volver a la lista original" style="margin-top:0;font-size:1rem;">↺ Lista de serie</button>
+    </div>
+    <div class="timer-controls" style="margin:0 0 10px;">
+      <button class="btn-secondary btn-ghost" id="btn-share-list" style="margin-top:0;font-size:1rem;">📱 Compartir QR</button>
+      <button class="btn-secondary btn-ghost" id="btn-scan-list" style="margin-top:0;font-size:1rem;">📷 Escanear QR</button>
     </div>
     <div class="on-msg" id="editor-msg" style="margin:0 0 6px;color:var(--gold);"></div>
     <input type="search" id="editor-search" class="field-inp" placeholder="Buscar categoría o palabra…" autocomplete="off" style="margin-bottom:12px;">
@@ -5141,10 +5145,11 @@
 }
 </script>
 <script src="js/misiones.js?v=1"></script>
-<script src="js/script.js?v=17"></script>
+<script src="js/script.js?v=18"></script>
 <script src="js/editor.js?v=1"></script>
 <script src="js/stats.js?v=1"></script>
-<script src="js/transport.js?v=17"></script>
-<script src="js/online.js?v=17"></script>
+<script src="js/compartir.js?v=1"></script>
+<script src="js/transport.js?v=18"></script>
+<script src="js/online.js?v=18"></script>
 </body>
 </html>
