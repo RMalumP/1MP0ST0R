@@ -32,7 +32,7 @@ Qué protege cada bloque de reglas:
 |---|---|
 | `.read/.write: false` en la raíz y `rooms/.read: false` | No se puede leer `rooms` en bloque: no hay listado de salas. |
 | `$roomId` validado con `^[0-9a-f]{64}$` | Solo existen salas con ID SHA-256 (nombre + contraseña). |
-| `meta` | Solo el anfitrión crea/modifica la sala; una sala abandonada más de 5 min puede ocuparse de nuevo. |
+| `meta` | Solo el anfitrión crea/modifica la sala; una sala abandonada más de 10 min puede ocuparse de nuevo. |
 | `players/$uid` | Cada jugador escribe solo su ficha; el anfitrión solo puede **borrar** fichas (expulsar). No se entra con la partida empezada. |
 | `state` | Solo el anfitrión escribe el estado público de la partida. |
 | `roles/$uid` | Solo el anfitrión escribe los roles; cada jugador **solo lee el suyo**. |
@@ -91,7 +91,7 @@ Sigue [`PRUEBAS.md`](PRUEBAS.md). Errores habituales:
 | Error de CORS en consola al pedir TURN | El Worker solo acepta `https://rmalump.github.io` exacto (sin `/` final ni ruta). Revisa `ALLOWED_ORIGIN`. |
 | «No se pudieron obtener las credenciales TURN» | `TURN_PROXY_URL` sin pegar, Worker sin variables (`/estado` lo dice) o API key mala. Funciona solo con STUN; algunas redes 4G/5G fallarán. |
 | La página no cambia tras subir cambios | Caché: espera 2–3 min y recarga forzando. |
-| «Sala no encontrada o contraseña incorrecta» | Nombre/contraseña distintos (se distingue la contraseña, no mayúsculas del nombre) o la sala lleva >5 min vacía. |
+| «Sala no encontrada o contraseña incorrecta» | Nombre/contraseña distintos (se distingue la contraseña, no mayúsculas del nombre) o la sala lleva >10 min vacía. |
 
 ## 9. Mantenimiento
 

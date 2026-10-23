@@ -10,7 +10,7 @@ const O = {
   active: false, host: false, uid: null, roomId: null, roomName: '', myName: '', players: [], pub: {}, myRole: null,
   hostRoles: {}, order: [], readySet: new Set(), readySent: -1, elim: new Set(), cur: null, savedNames: null, firstState: true, lastRoundShown: -1,
   popupSeen: 0, popupEl: null, popupId: 0, lastPopupId: 0, revealed: false, lastSettings: '', conn: true, wake: null,
-  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, quickPending: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
+  transporte: 'firebase', avisos: [], tick: null, setInt: null, pending: false, sentWords: false, cardSig: '', seatView: 0, bg: null, bgPref: true, quickPending: false, history: [], histRound: -1, decoyDone: {}, offSince: {}, hostOffSince: 0, autoRelevo: 0, myVotes: {}, myVotesId: 0, proposals: [], lastPropose: 0, shareData: null, votes: {}, mantN: 0, early: { jug: null, estado: null, rol: null }, timerSecs: null, vibSecs: -1, resultShown: '', busy: false
 };
 
 // ---------- utilidades ----------
@@ -98,7 +98,7 @@ function entrarEnSala(res, roomName, name) {
   if (O.host) {
     $('screen-setup').classList.add('online-host');
     O.setInt = setInterval(() => publicarAjustes(false), 1000);
-    pedirWake();
+    pedirWake(); if (O.bgPref) activarSegundoPlano().then(() => renderHostPanel());
     publicarAjustes(true);
   }
   O.tick = setInterval(tickTimer, 250);
@@ -111,7 +111,7 @@ function entrarEnSala(res, roomName, name) {
 }
 function limpiar() {
   clearInterval(O.tick); clearInterval(O.setInt); O.tick = O.setInt = null;
-  cerrarPopup(false); liberarWake();
+  cerrarPopup(false); liberarWake(); pararSegundoPlano();
   O.active = false; O.host = false; O.pub = {}; O.myRole = null; O.hostRoles = {}; O.players = []; O.order = []; O.pending = false;
   O.early = { jug: null, estado: null, rol: null }; O.proposals = []; O.shareData = null; O.votes = {};
   borrarSesion();
@@ -362,8 +362,9 @@ function renderHostPanel() {
   w.style.display = 'block'; w.className = 'on-warn' + (peer ? '' : ' on-info');
   w.textContent = peer
     ? '⚠️ Este móvil hace de servidor de la sala: no cierres ni recargues esta pestaña y no dejes que se bloquee la pantalla; si se pierde, los demás se quedan sin conexión.'
-    : 'ℹ️ Eres el anfitrión: tu móvil coordina la partida. Procura no cerrar la pestaña ni bloquear la pantalla; si te desconectas mucho rato, el control pasará al siguiente jugador.';
+    : 'ℹ️ Eres el anfitrión: tu móvil coordina la partida. Procura no cerrar la pestaña ni bloquear la pantalla; si te desconectas más de 10 minutos, el control pasará al siguiente jugador.';
   const wk = $('on-btn-wake'); if (wk) wk.style.display = (navigator.wakeLock && !O.wake) ? 'block' : 'none';
+  const bg = $('on-btn-bg'); if (bg) bg.textContent = O.bg ? '🔒 Segundo plano activado: sigue con la pantalla bloqueada (toca para desactivar)' : '🔒 Seguir activo con la pantalla bloqueada';
   const list = $('on-host-players'); list.innerHTML = '';
   const lobby = (O.pub.phase || 'lobby') === 'lobby';
   seats().forEach(pl => list.appendChild(chip(pl, lobby)));
@@ -648,8 +649,9 @@ function tickTimer() {
   if (O.active && O.cur === 'screen-online-game') renderTimer();
   if (O.active && ++O.mantN % 16 === 0) mantenimiento();
 }
-// Cada ~4 s: el anfitrión quita del lobby a quien lleva 3 min sin conexión; los jugadores ofrecen tomar la sala si el anfitrión desaparece.
-const FANTASMA_MS = 180000, ANFITRION_AUSENTE_MS = 25000, BANNER_RELEVO_MS = 60000, REINTENTO_RELEVO_MS = 15000;
+// Cada ~4 s: el anfitrión quita del lobby a quien lleva 10 min sin conexión; los jugadores ofrecen tomar la sala si el anfitrión desaparece.
+// Tolerancia de 10 minutos: un anfitrión con la pantalla bloqueada (pestaña en segundo plano) no pierde la sala ni el papel.
+const FANTASMA_MS = 600000, ANFITRION_AUSENTE_MS = 600000, BANNER_RELEVO_MS = 720000, REINTENTO_RELEVO_MS = 15000;
 function mantenimiento() {
   const ahora = Date.now(), lobby = (O.pub.phase || 'lobby') === 'lobby';
   if (O.host) {
@@ -659,7 +661,7 @@ function mantenimiento() {
       if (!O.offSince[p.id]) O.offSince[p.id] = ahora;
       if (lobby && ahora - O.offSince[p.id] > FANTASMA_MS) {
         delete O.offSince[p.id];
-        Transport.expulsar(p.id).then(() => { aviso('Se ha quitado a ' + p.nombre + ' por llevar 3 minutos sin conexión.', 6000); hostQuitarInvitado(p.id); }).catch(() => {});
+        Transport.expulsar(p.id).then(() => { aviso('Se ha quitado a ' + p.nombre + ' por llevar 10 minutos sin conexión.', 6000); hostQuitarInvitado(p.id); }).catch(() => {});
       }
     });
   }
@@ -684,7 +686,7 @@ function volverseAnfitrion() {
   O.host = true; O.hostOffSince = 0; O.lastSettings = ''; guardarSesion();
   $('screen-setup').classList.add('online-host');
   clearInterval(O.setInt); O.setInt = setInterval(() => publicarAjustes(false), 1000);
-  pedirWake();
+  pedirWake(); if (O.bgPref) activarSegundoPlano();
   O.readySet = new Set(parse(O.pub.ready, [])); O.history = [].concat(parse(O.pub.history, []));
   const ph = O.pub.phase || 'lobby';
   if (ph === 'alcalde') volverALobby(true);
@@ -696,7 +698,7 @@ function volverseAnfitrion() {
 }
 function perderAnfitrion() {
   if (!O.host) return;
-  O.host = false; clearInterval(O.setInt); O.setInt = null; liberarWake();
+  O.host = false; clearInterval(O.setInt); O.setInt = null; liberarWake(); pararSegundoPlano();
   $('screen-setup').classList.remove('online-host');
   aviso('Otro jugador ha pasado a ser el anfitrión de la sala.', 7000);
   renderTodo(); route();
@@ -1032,6 +1034,27 @@ async function pedirWake() {
     }
   } catch (e) { /* no disponible: se ignora */ }
 }
+// Segundo plano: un audio totalmente silencioso en bucle hace que el móvil trate la pestaña como «reproduciendo» y no la congele
+// con la pantalla bloqueada (el navegador puede mostrar una notificación de reproducción). Es experimental y gasta algo de batería.
+function wavSilencioso() {
+  const n = 8000, b = new ArrayBuffer(44 + n), v = new DataView(b), w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+  new Uint8Array(b, 44).fill(128);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+function activarSegundoPlano() {
+  if (O.bg) return Promise.resolve(true);
+  try {
+    const a = new Audio(wavSilencioso()); a.loop = true; a.volume = 1; a.setAttribute('playsinline', '');
+    return a.play().then(() => {
+      O.bg = a;
+      try { if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: 'El Impostor', artist: 'Sala activa' }); } catch (e) { /* nada */ }
+      return true;
+    }).catch(() => false);
+  } catch (e) { return Promise.resolve(false); }
+}
+function pararSegundoPlano() { try { if (O.bg) { O.bg.pause(); O.bg.src = ''; } } catch (e) { /* nada */ } O.bg = null; }
 function liberarWake() { try { if (O.wake) O.wake.release(); } catch (e) { /* nada */ } O.wake = null; }
 
 // ---------- volver a la sala tras recargar ----------
@@ -1067,6 +1090,7 @@ function bind() {
   $('on-reveal-card').addEventListener('click', () => { if (!O.myRole) return; O.revealed = !O.revealed; vibrate(O.revealed ? 25 : 15); sfx(O.revealed ? (vistaActual().rol === 'impostor' ? 'impostor' : 'civil') : 'pass'); renderCard(); });
   $('on-btn-results').addEventListener('click', () => { hostResultados(); vibrate(15); });
   $('on-btn-end').addEventListener('click', hostTerminar);
+  $('on-btn-bg').addEventListener('click', () => { if (O.bg) { O.bgPref = false; pararSegundoPlano(); renderHostPanel(); } else { O.bgPref = true; activarSegundoPlano().then(ok => { if (!ok) aviso('Tu navegador no permite mantenerse activo en segundo plano.', 6000); renderHostPanel(); }); } });
   $('on-btn-wake').addEventListener('click', () => { pedirWake().then(() => { renderHostPanel(); renderGame(); }); });
   $('on-btn-quick').addEventListener('click', hostRondaRapida);
   $('on-btn-qr').addEventListener('click', hostMostrarQR);
@@ -1089,7 +1113,7 @@ function bind() {
   $('on-btn-timer-change').addEventListener('click', hostTimerChange);
   $('on-resume-retry').addEventListener('click', () => { const s = leerSesion(); $('on-resume-banner').style.display = 'none'; if (s) intentarReanudar(s); });
   $('on-resume-discard').addEventListener('click', () => { borrarSesion(); $('on-resume-banner').style.display = 'none'; });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && O.active && O.host) pedirWake(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && O.active) { if (O.host) { pedirWake(); hostComprobarListos(); } renderTodo(); } });
   Transport.alRecibir(onMsg); Transport.alCambiarJugadores(onJugadores); Transport.alConexion(onConexion);
   const ses = leerSesion(); if (!aplicarEnlace() && ses) intentarReanudar(ses);
 }

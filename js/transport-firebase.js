@@ -20,7 +20,7 @@ const MAX_JUGADORES = 20;
 const T_AUTH = 10000;   // ms para iniciar sesión anónima
 const T_RED = 8000;     // ms para lecturas iniciales
 const LATIDO_MS = 60000;      // cada minuto, cada móvil conectado marca la sala como "viva"
-const SALA_LIBRE_MS = 300000; // sala sin nadie conectado más de 5 minutos = libre (lo aplican también las reglas)
+const SALA_LIBRE_MS = 600000; // sala sin nadie conectado más de 10 minutos = libre (lo aplican también las reglas)
 
 let app = null, auth = null, db = null, uid = null, offsetMs = 0, iniciado = null;
 let sala = null; // { roomId, session, esHost, hostUid, nombreJugador, unsubs, jugadoresRaw }
